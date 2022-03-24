@@ -3,7 +3,7 @@ import json
 import os
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser
-from typing import Dict, Literal
+from typing import Dict, Literal, Optional, IO
 
 
 class CountItem:
@@ -16,9 +16,23 @@ class CountItem:
 class HotspotFinder(ABC):
     TEMP_DIR = '.tmp'
 
-    def __init__(self, display_limit: int, csv_output: bool):
-        self.display_limit = display_limit
-        self.csv_output = csv_output
+    def __init__(self, display_limit: int, quiet: bool):
+        self.display_limit: int = display_limit
+        self.quiet: bool = quiet
+        self.__file: Optional[IO[str]] = None
+
+    def output(self, msg: str):
+        if self.__file is not None:
+            self.__file.write(msg)
+            self.__file.write('\n')
+
+    def set_output_file(self, output_file_name: str):
+        self.__file = open(output_file_name, 'w', encoding='utf8')
+
+    def stop(self):
+        if self.__file is not None:
+            self.__file.close()
+            self.__file = None
 
     @classmethod
     @abstractmethod
@@ -34,11 +48,11 @@ class HotspotFinder(ABC):
         raise NotImplementedError()
 
     @staticmethod
-    def create(tool_name: Literal['perf', 'callgrind'], display_limit: int, csv_output: bool) -> 'HotspotFinder':
+    def create(tool_name: Literal['perf', 'callgrind'], display_limit: int, quiet: bool) -> 'HotspotFinder':
         return {
             'perf': PerfHotspotFinder,
             'callgrind': CallgrindHotspotFinder,
-        }[tool_name](display_limit, csv_output)
+        }[tool_name](display_limit, quiet)
 
     @classmethod
     def _touch_temp_dir(cls):
@@ -54,14 +68,15 @@ class HotspotFinder(ABC):
 
     def _show_rank(self, counter: Dict[str, CountItem]):
         total = sum(map(lambda i: i.amount, counter.values()))
-        if not self.csv_output:
+
+        if not self.quiet:
             print()
             print('Total: {} {}'.format(total, self.amount_type()))
+
         for idx, func_name in enumerate(sorted(counter.keys(), key=lambda x: counter[x].amount, reverse=True)):
             item = counter[func_name]
-            if self.csv_output:
-                print('{},{},{}'.format(item.amount, item.amount / total * 100, func_name))
-            else:
+            self.output('{},{},{}'.format(item.amount, item.amount / total * 100, func_name))
+            if not self.quiet:
                 print('{:2}. {} {}s ({:.2f}%) @ {}'.format(
                     idx + 1,
                     item.amount,
@@ -86,6 +101,7 @@ class PerfHotspotFinder(HotspotFinder):
 
     def profile(self, cmd: str) -> bool:
         cmd = self._get_cmd(cmd)
+        self._touch_temp_dir()
 
         rv = os.system('perf record -g -e cpu-clock:pppH -F {freq} -o {output} -- {cmd}'.format(
             freq=self.FREQUENCY, output=self.PERF_FILEPATH, cmd=cmd
@@ -93,8 +109,6 @@ class PerfHotspotFinder(HotspotFinder):
         if rv != 0:
             print('Failed to profile with perf, exit')
             return False
-
-        self._touch_temp_dir()
 
         rv = os.system('perf data convert -i {} --to-json {} --force'.format(self.PERF_FILEPATH, self.JSON_FILEPATH))
         if rv != 0:
@@ -177,7 +191,6 @@ class CallgrindHotspotFinder(HotspotFinder):
                     ratio, info = rest.split(')', 1)
 
                     amount = int(amount.strip().replace(',', ''))
-                    ratio = float(ratio.replace('%', ''))
                     info = info.strip()
 
                     item = CountItem()
@@ -188,7 +201,7 @@ class CallgrindHotspotFinder(HotspotFinder):
                     else:
                         item.func_name = t
                     counter[item.func_name] = item
-            except:
+            except (ValueError, KeyError):
                 print('Failed to parse line {}'.format(repr(line)))
                 raise
 
@@ -198,14 +211,16 @@ class CallgrindHotspotFinder(HotspotFinder):
 def main():
     parser = ArgumentParser(prog='python hotspot_finder.py')
     parser.add_argument('-t', '--tool', default='perf', help='Profile tool to be used. Available options: perf, callgrind. Default: perf')
-    parser.add_argument('-l', '--limit', type=int, default=10, help='Maximum amount of hotspot functions to be displayed. Default: 10')
-    # parser.add_argument('-p', '--pid', type=int, default=-1, help='Target process pid, optional. When specified, command of the program is not needed')
-    parser.add_argument('-c', '--cmd', default='', help='The command of the program to be profiled')
-    parser.add_argument('--csv', action='store_true', help='Use csv format to display result')
-    result = parser.parse_args()
+    parser.add_argument('-l', '--limit', type=int, default=20, help='Maximum amount of hotspot functions to be displayed. Default: 10')
+    parser.add_argument('-c', '--cmd', default='', help='The command of the program to be profiled. If not specified, you need to input it manually')
+    parser.add_argument('-o', '--output', default='', help='The path of the output file in csv format, if specified')
+    parser.add_argument('-q', '--quiet', action='store_true', help='Do not print any message unless exception occurs')
+    args = parser.parse_args()
 
-    finder = HotspotFinder.create(result.tool, result.limit, result.csv)
-    if finder.profile(cmd=result.cmd):
+    finder = HotspotFinder.create(args.tool, args.limit, args.quiet)
+    if args.output:
+        finder.set_output_file(args.output)
+    if finder.profile(args.cmd):
         finder.analyze()
 
 

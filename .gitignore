@@ -1,5 +1,4 @@
 /.tmp
-/pin*
 /*.json
 /*.txt
 /callgrind*
@@ -7,3 +6,4 @@
 /.idea
 /*.data
 /*.old
+/*.csv
