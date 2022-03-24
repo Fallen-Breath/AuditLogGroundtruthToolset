@@ -3,7 +3,7 @@ import json
 import os
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser
-from typing import Dict, Set, Tuple, Literal
+from typing import Dict, Literal
 
 
 class CountItem:
@@ -11,7 +11,6 @@ class CountItem:
         self.amount = 0
         self.func_name = ''
         self.file_path = ''
-        self.call_chains: Set[Tuple[str]] = set()
 
 
 class HotspotFinder(ABC):
@@ -70,8 +69,6 @@ class HotspotFinder(ABC):
                     item.amount / total * 100,
                     func_name
                 ), end='')
-                if len(item.call_chains) > 0 and False:
-                    print(', (example callchain: {})'.format(' <- '.join(list(item.call_chains)[0])), end='')
                 print()
 
             if idx + 1 == self.display_limit:
@@ -83,17 +80,14 @@ class PerfHotspotFinder(HotspotFinder):
     PERF_FILEPATH = os.path.join(HotspotFinder.TEMP_DIR, 'perf.data')
     JSON_FILEPATH = os.path.join(HotspotFinder.TEMP_DIR, 'perf.json')
 
-    comm: str = ''
-
     @classmethod
     def amount_type(cls) -> str:
         return 'sample'
 
     def profile(self, cmd: str) -> bool:
         cmd = self._get_cmd(cmd)
-        self.comm = cmd
 
-        rv = os.system('perf record -a -g -e cpu-clock:pppH -F {freq} -o {output} -- {cmd}'.format(
+        rv = os.system('perf record -g -e cpu-clock:pppH -F {freq} -o {output} -- {cmd}'.format(
             freq=self.FREQUENCY, output=self.PERF_FILEPATH, cmd=cmd
         ))
         if rv != 0:
@@ -124,14 +118,13 @@ class PerfHotspotFinder(HotspotFinder):
         comm = set()
         for sample in data['samples']:
             comm.add(sample['comm'])
-            if sample['comm'] != self.comm:
-                continue
             callchain = sample['callchain']
-            if len(callchain) > 0:
-                func_name = self.get_function_name(callchain[0])
-                counter[func_name].amount += 1
-                counter[func_name].func_name = func_name
-                counter[func_name].call_chains.add(tuple(map(self.get_function_name, callchain)))
+            for cc in callchain:
+                func_name = self.get_function_name(cc)
+                if not cc.get('dso', '').startswith('['):
+                    counter[func_name].amount += 1
+                    counter[func_name].func_name = func_name
+                    break
         # print(comm)
         self._show_rank(counter)
 
