@@ -1,0 +1,9 @@
+/.tmp
+/pin*
+/*.json
+/*.txt
+/callgrind*
+/time_cost
+/.idea
+/*.data
+/*.old
