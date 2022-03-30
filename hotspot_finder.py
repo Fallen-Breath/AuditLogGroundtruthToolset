@@ -66,11 +66,14 @@ class HotspotFinder(ABC):
         else:
             return input('command to profile: ')
 
-    def _show_rank(self, counter: Dict[str, CountItem]):
-        total = sum(map(lambda i: i.amount, counter.values()))
+    @staticmethod
+    def _get_total(counter: Dict[str, CountItem]) -> int:
+        return sum(map(lambda i: i.amount, counter.values()))
 
-        if not self.quiet:
-            print()
+    def _show_rank(self, counter: Dict[str, CountItem], *, total_overwrite: Optional[int] = None):
+        total = self._get_total(counter) if total_overwrite is None else total_overwrite
+
+        if not self.quiet and not total_overwrite:
             print('Total: {} {}'.format(total, self.amount_type()))
 
         for idx, func_name in enumerate(sorted(counter.keys(), key=lambda x: counter[x].amount, reverse=True)):
@@ -126,21 +129,20 @@ class PerfHotspotFinder(HotspotFinder):
             raise
 
     def analyze(self):
-        counter: Dict[str, CountItem] = collections.defaultdict(CountItem)
         with open(self.JSON_FILEPATH, 'r') as file:
             data = json.load(file)
-        comm = set()
+
+        counter: Dict[int, Dict[str, CountItem]] = collections.defaultdict(lambda: collections.defaultdict(CountItem))
         for sample in data['samples']:
-            comm.add(sample['comm'])
             callchain = sample['callchain']
-            for cc in callchain:
+            for depth, cc in enumerate(reversed(callchain)):
                 func_name = self.get_function_name(cc)
-                if not cc.get('dso', '').startswith('['):
-                    counter[func_name].amount += 1
-                    counter[func_name].func_name = func_name
-                    break
-        # print(comm)
-        self._show_rank(counter)
+                counter[depth][func_name].amount += 1
+                counter[depth][func_name].func_name = func_name
+
+        for depth in range(10):
+            print('===== Depth {} ====='.format(depth))
+            self._show_rank(counter[depth], total_overwrite=len(data['samples']))
 
 
 class CallgrindHotspotFinder(HotspotFinder):
