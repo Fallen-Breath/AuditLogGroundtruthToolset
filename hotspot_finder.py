@@ -48,10 +48,11 @@ class HotspotFinder(ABC):
         raise NotImplementedError()
 
     @staticmethod
-    def create(tool_name: Literal['perf', 'callgrind'], display_limit: int, quiet: bool) -> 'HotspotFinder':
+    def create(tool_name: Literal['perf', 'callgrind', 'pin'], display_limit: int, quiet: bool) -> 'HotspotFinder':
         return {
             'perf': PerfHotspotFinder,
             'callgrind': CallgrindHotspotFinder,
+            'pin': PinHotSpotFinder,
         }[tool_name](display_limit, quiet)
 
     @classmethod
@@ -210,9 +211,42 @@ class CallgrindHotspotFinder(HotspotFinder):
         self._show_rank(counter)
 
 
+class PinHotSpotFinder(HotspotFinder):
+    PINTOOL_OUTPUT_PATH = os.path.join(HotspotFinder.TEMP_DIR, 'pintool.json')
+
+    @classmethod
+    def amount_type(cls) -> str:
+        return 'sample'
+
+    def profile(self, cmd: str) -> bool:
+        cmd = self._get_cmd(cmd)
+        self._touch_temp_dir()
+
+        rv = os.system('./pin/pin_root/pin -t ./pin/obj-intel64/SyscallTrace.so -o {output} -- {cmd}'.format(
+            output=self.PINTOOL_OUTPUT_PATH, cmd=cmd
+        ))
+        if rv != 0:
+            print('Failed to profile with pin tool SyscallTrace, exit')
+            return False
+        return True
+
+    def analyze(self):
+        with open(self.PINTOOL_OUTPUT_PATH, 'r') as file:
+            data: list = json.load(file)
+
+        counter: Dict[str, CountItem] = collections.defaultdict(CountItem)
+        for sample in data:
+            for depth, trace in enumerate(reversed(sample['trace'])):
+                func_name = trace.split(' ', 1)[0]
+                counter[trace].amount += 1
+                counter[trace].func_name = func_name
+
+        self._show_rank(counter)
+
+
 def main():
     parser = ArgumentParser(prog='python hotspot_finder.py')
-    parser.add_argument('-t', '--tool', default='perf', help='Profile tool to be used. Available options: perf, callgrind. Default: perf')
+    parser.add_argument('-t', '--tool', default='perf', help='Profile tool to be used. Available options: perf, callgrind, pin. Default: perf')
     parser.add_argument('-l', '--limit', type=int, default=20, help='Maximum amount of hotspot functions to be displayed. Default: 10')
     parser.add_argument('-c', '--cmd', default='', help='The command of the program to be profiled. If not specified, you need to input it manually')
     parser.add_argument('-o', '--output', default='', help='The path of the output file in csv format, if specified')
