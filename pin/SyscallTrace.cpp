@@ -8,6 +8,8 @@
 #include <string>
 #include <sstream>
 
+#define DEBUG_LOG (false)
+
 /* ================================================================== */
 //                             Classes
 /* ================================================================== */
@@ -145,7 +147,7 @@ void onAppExit(INT32 code, VOID* v)
 
 void onThreadStart(THREADID threadId, CONTEXT* ctxt, INT32 flags, VOID* v)
 {
-    std::cerr << "Thread #" << threadId << " started" << std::endl;
+    if (DEBUG_LOG) std::cerr << "Thread #" << threadId << " started" << std::endl;
     if (myThreadId == INVALID_THREADID)
     {
         myThreadId = threadId;
@@ -158,7 +160,7 @@ void onSyscall(THREADID threadId, CONTEXT *ctxt, SYSCALL_STANDARD std, VOID *v)
 
     SyscallSample sample;
     sample.id = PIN_GetSyscallNumber(ctxt, std);
-    std::cerr << std::string(funcTrace.size() * 2, ' ') << "syscall: " << getSyscallName(sample.id) << std::endl;
+    if (DEBUG_LOG) std::cerr << std::string(funcTrace.size() * 2, ' ') << "syscall: " << getSyscallName(sample.id) << std::endl;
 
     PIN_LockClient();
     {
@@ -184,7 +186,7 @@ void beforeFunctionCall(THREADID threadId, UINT32 funcNameIdx)
 {
     if (threadId != myThreadId) return;
 
-    std::cerr << std::string(funcTrace.size() * 2, ' ') << "function start: " << funcNames[funcNameIdx] << std::endl;
+    if (DEBUG_LOG) std::cerr << std::string(funcTrace.size() * 2, ' ') << "function start: " << funcNames[funcNameIdx] << std::endl;
     funcTrace.push_back(funcNames[funcNameIdx]);
 
     FunctionActionSample(funcNames[funcNameIdx], "func_start").printJson("\t");
@@ -196,25 +198,13 @@ void afterFunctionCall(THREADID threadId, UINT32 funcNameIdx)
 
     if (funcTrace.empty())
     {
-        std::cerr << "warn: func trace stack is empty" << std::endl;
+        if (DEBUG_LOG) std::cerr << "warn: func trace stack is empty" << std::endl;
     }
     else
     {
-        while (!funcTrace.empty() && *funcTrace.rbegin() != funcNames[funcNameIdx])
-        {
-            std::cerr << "warn: func trace stack top mismatch: " << *funcTrace.rbegin() << ", " << funcNames[funcNameIdx] << std::endl;
-            funcTrace.pop_back();
-        }
-        if (funcTrace.empty())
-        {
-            std::cerr << "warn: cannot found corresponding func start " << funcNames[funcNameIdx] << std::endl;
-        }
-        else
-        {
-            funcTrace.pop_back();
-        }
+        funcTrace.pop_back();
     }
-    std::cerr << std::string(funcTrace.size() * 2, ' ') << "function end: " << funcNames[funcNameIdx] << std::endl;
+    if (DEBUG_LOG) std::cerr << std::string(funcTrace.size() * 2, ' ') << "function end: " << funcNames[funcNameIdx] << std::endl;
 
     FunctionActionSample(funcNames[funcNameIdx], "func_end").printJson("\t");
 }
@@ -223,7 +213,7 @@ bool firstImg = true;
 
 void onImageLoaded(IMG img, VOID* v)
 {
-    std::cerr << "IMG " << IMG_Name(img) << std::endl;
+    if (DEBUG_LOG) std::cerr << "IMG " << IMG_Name(img) << std::endl;
     if (!firstImg) return;
     firstImg = false;
 

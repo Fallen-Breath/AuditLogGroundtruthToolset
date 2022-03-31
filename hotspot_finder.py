@@ -236,6 +236,8 @@ class PinHotSpotFinder(HotspotFinder):
 
         counter: Dict[str, CountItem] = collections.defaultdict(CountItem)
         for sample in data:
+            if sample['type'] != 'syscall':
+                continue
             for depth, trace in enumerate(reversed(sample['trace'])):
                 func_name = trace.split(' ', 1)[0]
                 counter[trace].amount += 1
