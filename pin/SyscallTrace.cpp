@@ -49,6 +49,9 @@ std::ostream* out = &std::cerr;
 std::vector<std::string> funcNames;
 std::vector<std::string> funcTrace;
 
+std::vector<std::string> targetRtnNames;
+std::vector<BasicSample*> samples;
+
 int printedDepth = 0;
 THREADID myThreadId = INVALID_THREADID;
 
@@ -58,8 +61,9 @@ const char* syscallNames[335] = {"read","write","open","close","stat","fstat","l
 //                          Command line switches
 /* ===================================================================== */
 
-KNOB<std::string> KnobOutputFile(KNOB_MODE_WRITEONCE, "pintool", "o", "", "specify file name for MyPinTool output");
-KNOB<BOOL> KnobCount(KNOB_MODE_WRITEONCE, "pintool", "count", "1", "count instructions, basic blocks and threads in the application");
+KNOB<std::string> KnobOutputFile(KNOB_MODE_WRITEONCE, "pintool", "o", "", "Specify file name for MyPinTool output");
+KNOB<std::string> KnobTargetRtnNamesFile(KNOB_MODE_WRITEONCE, "pintool", "t", "", "Specify name of target routines to record start-end");
+KNOB<BOOL> KnobRecordSyscallTrace(KNOB_MODE_WRITEONCE, "pintool", "s", "", "Record traces at syscall sample");
 
 /* ===================================================================== */
 //                                Utilities
@@ -80,8 +84,8 @@ std::string getSyscallName(int syscallId)
         return std::string(syscallNames[syscallId]);
     }
     std::ostringstream ss;
-    ss << syscallId;
-    return std::string("unknown(") + ss.str() + ")";
+    ss << "unknown(" << syscallId << ")";
+    return ss.str();
 }
 
 /* ===================================================================== */
@@ -135,14 +139,23 @@ void FunctionActionSample::printJson(std::string indent)
 //                               Callbacks
 /* ===================================================================== */
 
-void onAppStart(VOID* v)
+void dumpSamples()
 {
     *out << "[" << std::endl;
+    for (BasicSample* sample : samples)
+    {
+        sample->printJson("\t");
+    }
+    *out << std::endl << "]" << std::endl;
+}
+
+void onAppStart(VOID* v)
+{
 }
 
 void onAppExit(INT32 code, VOID* v)
 {
-    *out << "]" << std::endl;
+    dumpSamples();
 }
 
 void onThreadStart(THREADID threadId, CONTEXT* ctxt, INT32 flags, VOID* v)
@@ -158,28 +171,31 @@ void onSyscall(THREADID threadId, CONTEXT *ctxt, SYSCALL_STANDARD std, VOID *v)
 {
     if (threadId != myThreadId) return;
 
-    SyscallSample sample;
-    sample.id = PIN_GetSyscallNumber(ctxt, std);
-    if (DEBUG_LOG) std::cerr << std::string(funcTrace.size() * 2, ' ') << "syscall: " << getSyscallName(sample.id) << std::endl;
+    SyscallSample *sample = new SyscallSample();
+    sample->id = PIN_GetSyscallNumber(ctxt, std);
+    if (DEBUG_LOG) std::cerr << std::string(funcTrace.size() * 2, ' ') << "syscall: " << getSyscallName(sample->id) << std::endl;
 
-    PIN_LockClient();
+    if (KnobRecordSyscallTrace.Value())
     {
-        void* buf[512];
-        int nptrs = PIN_Backtrace(ctxt, buf, sizeof(buf) / sizeof(buf[0]));
-        char** bt = backtrace_symbols(buf, nptrs);
-        for (int i = nptrs - 1; i >= 0; i--)
+        PIN_LockClient();
         {
-            for (int j = std::strlen(bt[i]) - 1; j >= 0 && bt[i][j] == ' '; j--)
+            void* buf[512];
+            int nptrs = PIN_Backtrace(ctxt, buf, sizeof(buf) / sizeof(buf[0]));
+            char** bt = backtrace_symbols(buf, nptrs);
+            for (int i = nptrs - 1; i >= 0; i--)
             {
-                bt[i][j] = '\0';
+                for (int j = std::strlen(bt[i]) - 1; j >= 0 && bt[i][j] == ' '; j--)
+                {
+                    bt[i][j] = '\0';
+                }
+                sample->trace.push_back(bt[i]);
             }
-            sample.trace.push_back(bt[i]);
+            free(bt);
         }
-        free(bt);
+        PIN_UnlockClient();
     }
-    PIN_UnlockClient();
-    
-    sample.printJson("\t");
+
+    samples.push_back(sample);
 }
 
 void beforeFunctionCall(THREADID threadId, UINT32 funcNameIdx)
@@ -189,7 +205,7 @@ void beforeFunctionCall(THREADID threadId, UINT32 funcNameIdx)
     if (DEBUG_LOG) std::cerr << std::string(funcTrace.size() * 2, ' ') << "function start: " << funcNames[funcNameIdx] << std::endl;
     funcTrace.push_back(funcNames[funcNameIdx]);
 
-    FunctionActionSample(funcNames[funcNameIdx], "func_start").printJson("\t");
+    samples.push_back(new FunctionActionSample(funcNames[funcNameIdx], "func_start"));
 }
 
 void afterFunctionCall(THREADID threadId, UINT32 funcNameIdx)
@@ -206,20 +222,17 @@ void afterFunctionCall(THREADID threadId, UINT32 funcNameIdx)
     }
     if (DEBUG_LOG) std::cerr << std::string(funcTrace.size() * 2, ' ') << "function end: " << funcNames[funcNameIdx] << std::endl;
 
-    FunctionActionSample(funcNames[funcNameIdx], "func_end").printJson("\t");
+    samples.push_back(new FunctionActionSample(funcNames[funcNameIdx], "func_end"));
 }
-
-bool firstImg = true;
 
 void onImageLoaded(IMG img, VOID* v)
 {
     if (DEBUG_LOG) std::cerr << "IMG " << IMG_Name(img) << std::endl;
-    if (!firstImg) return;
-    firstImg = false;
 
-    for (SEC sec = IMG_SecHead(img); SEC_Valid(sec); sec = SEC_Next(sec))
+    for (const std::string &name : targetRtnNames)
     {
-        for (RTN rtn = SEC_RtnHead(sec); RTN_Valid(rtn); rtn = RTN_Next(rtn))
+        RTN rtn = RTN_FindByName(img, name.c_str());
+        if (RTN_Valid(rtn))
         {
             std::string rtnName = PIN_UndecorateSymbolName(RTN_Name(rtn), UNDECORATION_COMPLETE);
 
@@ -249,6 +262,30 @@ void onImageLoaded(IMG img, VOID* v)
 //                                 Main
 /* ===================================================================== */
 
+void init()
+{
+    std::string outputFileName = KnobOutputFile.Value();
+    if (!outputFileName.empty())
+    {
+        out = new std::ofstream(outputFileName.c_str());
+    }
+
+    std::string rtnFileName = KnobTargetRtnNamesFile.Value();
+    if (!rtnFileName.empty())
+    {
+        std::ifstream ifs(rtnFileName.c_str());
+        std::string line;
+        while (std::getline(ifs, line))
+        {
+            if (!line.empty())
+            {
+                targetRtnNames.push_back(line);
+            }
+        }
+        ifs.close();
+    }
+}
+
 int main(int argc, char* argv[])
 {
     PIN_InitSymbols();
@@ -257,11 +294,7 @@ int main(int argc, char* argv[])
         return Usage();
     }
 
-    std::string fileName = KnobOutputFile.Value();
-    if (!fileName.empty())
-    {
-        out = new std::ofstream(fileName.c_str());
-    }
+    init();
 
     PIN_AddApplicationStartFunction(onAppStart, 0);
     PIN_AddFiniFunction(onAppExit, 0);

@@ -243,6 +243,7 @@ class PinHotSpotFinder(HotspotFinder):
                 counter[trace].amount += 1
                 counter[trace].func_name = func_name
 
+        print('total different traces: {}x'.format(len(counter)))
         self._show_rank(counter)
 
 
