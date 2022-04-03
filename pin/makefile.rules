@@ -22,14 +22,14 @@
 # This defines tests which run tools of the same name.  This is simply for convenience to avoid
 # defining the test name twice (once in TOOL_ROOTS and again in TEST_ROOTS).
 # Tests defined here should not be defined in TOOL_ROOTS and TEST_ROOTS.
-TEST_TOOL_ROOTS := SyscallTrace
+TEST_TOOL_ROOTS :=
 
 # This defines the tests to be run that were not already defined in TEST_TOOL_ROOTS.
 TEST_ROOTS :=
 
 # This defines the tools which will be run during the the tests, and were not already defined in
 # TEST_TOOL_ROOTS.
-TOOL_ROOTS := SyscallTrace
+TOOL_ROOTS := SyscallSampler SyscallTracer
 
 # This defines the static analysis tools which will be run during the the tests. They should not
 # be defined in TEST_TOOL_ROOTS. If a test with the same name exists, it should be defined in
@@ -40,7 +40,7 @@ TOOL_ROOTS := SyscallTrace
 SA_TOOL_ROOTS :=
 
 # This defines all the applications that will be run during the tests.
-APP_ROOTS := SyscallTrace
+APP_ROOTS :=
 
 # This defines any additional object files that need to be compiled.
 OBJECT_ROOTS :=
@@ -83,3 +83,23 @@ SANITY_SUBSET := $(TEST_TOOL_ROOTS) $(TEST_ROOTS)
 
 # This section contains the build rules for all binaries that have special build rules.
 # See makefile.default.rules for the default build rules.
+
+# util -> object
+$(OBJDIR)common$(OBJ_SUFFIX): common.cpp common.h
+	$(CXX) $(TOOL_CXXFLAGS) $(COMP_OBJ)$@ $<
+
+# SyscallSampler -> object
+$(OBJDIR)SyscallSampler$(OBJ_SUFFIX): SyscallSampler.cpp
+	$(CXX) $(TOOL_CXXFLAGS) $(COMP_OBJ)$@ $<
+
+# SyscallSampler -> shared object
+$(OBJDIR)SyscallSampler$(PINTOOL_SUFFIX): $(OBJDIR)SyscallSampler$(OBJ_SUFFIX) $(OBJDIR)common$(OBJ_SUFFIX)
+	$(LINKER) $(TOOL_LDFLAGS_NOOPT) $(LINK_EXE)$@ $(^:%.h=) $(TOOL_LPATHS) $(TOOL_LIBS)
+
+# SyscallTracer -> object
+$(OBJDIR)SyscallTracer$(OBJ_SUFFIX): SyscallTracer.cpp
+	$(CXX) $(TOOL_CXXFLAGS) $(COMP_OBJ)$@ $<
+
+# SyscallTracer -> shared object
+$(OBJDIR)SyscallTracer$(PINTOOL_SUFFIX): $(OBJDIR)SyscallTracer$(OBJ_SUFFIX) $(OBJDIR)common$(OBJ_SUFFIX)
+	$(LINKER) $(TOOL_LDFLAGS_NOOPT) $(LINK_EXE)$@ $(^:%.h=) $(TOOL_LPATHS) $(TOOL_LIBS)
