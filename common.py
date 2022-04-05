@@ -50,10 +50,13 @@ class AbstractTreeNode(ABC):
         for child in self.children:
             child.visit_tree(visitor)
 
+    def should_trim(self, k: int) -> bool:
+        return self.children_size <= k
+
     def trim(self, k: int):
         for child in list(self.children):
             child.trim(k)
-        if not self.is_root() and not self.is_leaf() and self.children_size <= k:
+        if not self.is_root() and not self.is_leaf() and self.should_trim(k):
             self.father.remove_child(self)
             for child in self.children:
                 self.father.add_child(child)

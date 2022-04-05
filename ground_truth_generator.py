@@ -1,5 +1,4 @@
 import json
-import json
 import os
 import sys
 from argparse import ArgumentParser
@@ -45,6 +44,9 @@ class TracingTreeNode(AbstractTreeNode):
     def clean_children(self):
         self.children_list.clear()
 
+    def should_trim(self, k: int) -> bool:
+        return super().should_trim(k) or (super().should_trim(k * 5) and all(map(lambda c: c.is_leaf(), self.children)))
+
     def __finalize(self, depth: int) -> int:
         self.depth = depth
         max_depth = depth
@@ -63,6 +65,31 @@ class TracingTreeNode(AbstractTreeNode):
 
     def to_str(self) -> str:
         return '{}: {}'.format(self.type.name, self.value) if self.type != self.Type.root else ROOT_NODE_NAME
+
+    def collect(self, node_list: list) -> dict:
+        self_data_basic = {
+            'type': self.type.name,
+            'call_depth': self.depth,
+            'max_child_distance': self.max_child_distance
+        }
+
+        if self.type == TracingTreeNode.Type.syscall:
+            self_data_basic['syscall'] = self.value
+        elif self.type == TracingTreeNode.Type.function:
+            self_data_basic['function'] = self.value
+
+        self_data_full = self_data_basic.copy()
+        child_list = []
+        for child in self.children:
+            child_list.append(child.collect(node_list))
+        self_data_full['children'] = child_list
+
+        if not self.is_root() and not self.is_leaf():
+            self_data_simple_children = self_data_basic.copy()
+            self_data_simple_children['children'] = list(map(lambda c: '{}:{}'.format(c.type.name, c.value), self.children))
+            node_list.append(self_data_simple_children)
+
+        return self_data_full
 
 
 def pin(tool_name: str, output_file: str, args: Dict[str, Any]) -> List[dict]:
@@ -105,31 +132,24 @@ def do_trace():
     # root.dump()
     # print('===================================')
 
-    def visitor(node: TracingTreeNode):
-        if not node.is_root():
-            if not node.is_leaf():
-                assert node.type == TracingTreeNode.Type.function
-                lst.append({
-                    'function': node.value,
-                    'call_depth': node.depth,
-                    'max_child_distance': node.max_child_distance,
-                    'children': list(map(
-                        lambda c: '{},{}'.format(c.type.name, c.value),
-                        node.children
-                    ))
-                })
-
     lst = []
-    root.visit_tree(visitor)
-    with open(generator_args.output, 'w', encoding='utf8') as file:
+    dt = root.collect(lst)
+
+    with open('ground_truth.nodes.json', 'w', encoding='utf8') as file:
         json.dump(lst, file, ensure_ascii=False, indent=2)
+
+    with open('ground_truth.tree.json', 'w', encoding='utf8') as file:
+        json.dump(dt, file, ensure_ascii=False, indent=2)
+
+    with open('ground_truth.tree.txt', 'w', encoding='utf8') as file:
+        root.visit_tree(lambda n: file.write('{}{}\n'.format('    ' * n.depth, n.to_str())))
 
 
 def main():
     parser = ArgumentParser(prog='python ground_truth_generator.py')
     parser.add_argument('-c', '--cmd', help='The command of the program to be profiled')
     parser.add_argument('-i', '--input', default='hotspots.txt', help='The path to the hotspot file. Default: hotspots.txt')
-    parser.add_argument('-o', '--output', default='ground_truth.json', help='The path of the output file in csv format, if specified')
+    # parser.add_argument('-o', '--output', default='ground_truth.json', help='The path of the output file in csv format, if specified')
     parser.add_argument('-k', '--kfactor', type=int, default=1, help='The value k used in subtree trimming, where nodes with <= k direct children will be trimmed. Default: 1')
     parser.add_argument('-q', '--quiet', action='store_true', help='Do not print any message unless exception occurs')
     global generator_args

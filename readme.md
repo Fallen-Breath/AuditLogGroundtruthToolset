@@ -4,7 +4,7 @@ Use `-h` option to see help for all toos
 
 `hotspot_finder.py`: Use perf / callgrind / pin to find hotspot functions. Outputs hotspots into a txt file
 
-`ground_truth_generator.py`: Use given hotspot function list and pin to create a base ground truth data. Outputs data into a json file
+`ground_truth_generator.py`: Use given hotspot function list and pin to create a base ground truth data. Outputs data into `ground_truth.nodes.json`, `ground_truth.tree.json` and `ground_truth.tree.txt`
 
 `pin/SyscallSampler.cpp`, `pin/obj-intel64/SyscallSampler.so`: Sample stack traces on syscalls
 
