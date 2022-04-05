@@ -4,13 +4,9 @@
 
 #include <execinfo.h>
 #include <vector>
-#include <set>
 #include <string>
 #include <sstream>
 #include "common.h"
-
-#define DEBUG_LOG (true)
-
 
 /* ================================================================== */
 //                         Global variables
@@ -31,7 +27,7 @@ KNOB<std::string> KnobOutputFile(KNOB_MODE_WRITEONCE, "pintool", "o", "sampler.j
 
 INT32 Usage()
 {
-    std::cerr << "#TODO" << std::endl;
+    std::cerr << "A tool to sample stack traces of all syscalls of the target program" << std::endl;
     std::cerr << KNOB_BASE::StringKnobSummary() << std::endl;
 
     return -1;
@@ -41,29 +37,20 @@ INT32 Usage()
 //                               Callbacks
 /* ===================================================================== */
 
-void dumpSamples()
-{
-    *out << "[" << std::endl;
-    for (BasicSample* sample : samples)
-    {
-        sample->printJson(out, "\t");
-    }
-    *out << std::endl << "]" << std::endl;
-}
-
 void onAppStart(VOID* v)
 {
 }
 
 void onAppExit(INT32 code, VOID* v)
 {
-    dumpSamples();
+    dumpSamples(out, samples);
 }
 
 void onSyscall(THREADID threadId, CONTEXT *ctxt, SYSCALL_STANDARD std, VOID *v)
 {
     SyscallSample *sample = new SyscallSample();
     sample->id = PIN_GetSyscallNumber(ctxt, std);
+    sample->showTrace = true;
 
     PIN_LockClient();
     {

@@ -13,5 +13,5 @@
 /pin/time_cost
 /pin/test.cpp
 /pin/time_cost.cpp
-/pin/pin.log
+**/pin.log
 **/pintool.log

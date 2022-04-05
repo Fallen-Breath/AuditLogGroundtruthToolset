@@ -7,48 +7,56 @@ const char* syscallNames[335] = {"read","write","open","close","stat","fstat","l
 //                             Class Impls
 /* ===================================================================== */
 
-bool BasicSample::firstSamplePrinted = true;
-
-void BasicSample::printJsonDivider(std::ostream* out)
+SyscallSample::SyscallSample(): showTrace(false)
 {
-    if (firstSamplePrinted)
-    {
-        firstSamplePrinted = false;
-    }
-    else
-    {
-        *out << "," << std::endl;
-    }
+}
+
+const std::string& SyscallSample::getType()
+{
+    static std::string ret("syscall");
+    return ret;
 }
 
 void SyscallSample::printJson(std::ostream* out, std::string indent)
 {
-    printJsonDivider(out);
     *out << indent << "{" << std::endl;
 
     *out << indent << "\t\"type\": \"syscall\"," << std::endl;
     *out << indent << "\t\"syscallId\": " << this->id << "," << std::endl;
-    *out << indent << "\t\"syscallName\": \"" << getSyscallName(this->id) << "\"," << std::endl;
-    *out << indent << "\t\"trace\": [" << std::endl;
-    for (int j = 0; j < (int)this->trace.size(); j++)
+    *out << indent << "\t\"syscallName\": \"" << getSyscallName(this->id) << "\"";
+    if (this->showTrace)
     {
-        *out << indent << "\t\t\"" << this->trace[j] << "\"";
-        if (j < (int)this->trace.size() - 1)
+        *out << "," << std::endl;
+        *out << indent << "\t\"trace\": [" << std::endl;
+        for (int j = 0; j < (int)this->trace.size(); j++)
         {
-            *out << ",";
+            *out << indent << "\t\t\"" << this->trace[j] << "\"";
+            if (j < (int)this->trace.size() - 1)
+            {
+                *out << ",";
+            }
+            *out << std::endl;
         }
-        *out << std::endl;
+        *out << indent << "\t]";
     }
-    *out << indent << "\t]" << std::endl;
+    *out << std::endl;
     *out << indent << "}";
+}
+
+FunctionActionSample::FunctionActionSample(const FunctionActionSample &sample): funcName(sample.funcName), type(sample.type)
+{
+}
+
+const std::string& FunctionActionSample::getType()
+{
+    return this->type;
 }
 
 void FunctionActionSample::printJson(std::ostream* out, std::string indent)
 {
-    printJsonDivider(out);
     *out << "\t{" << std::endl;
     *out << "\t\t\"type\": \"" << this->type << "\"," << std::endl;
-    *out << "\t\t\"func_name\": \"" << this->funcName << "\"" << std::endl;
+    *out << "\t\t\"funcName\": \"" << this->funcName << "\"" << std::endl;
     *out << "\t}";
 }
 
@@ -65,4 +73,23 @@ std::string getSyscallName(int syscallId)
     std::ostringstream ss;
     ss << "unknown(" << syscallId << ")";
     return ss.str();
+}
+
+void dumpSamples(std::ostream* out, const std::vector<BasicSample*> &samples)
+{
+    *out << "[" << std::endl;
+    bool isFirst = true;
+    for (BasicSample* sample : samples)
+    {
+        if (isFirst)
+        {
+            isFirst = false;
+        }
+        else
+        {
+            *out << "," << std::endl;
+        }
+        sample->printJson(out, "\t");
+    }
+    *out << std::endl << "]" << std::endl;
 }

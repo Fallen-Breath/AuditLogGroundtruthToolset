@@ -3,7 +3,12 @@ import json
 import os
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser
-from typing import Dict, Literal, Optional, IO
+from typing import Dict, Literal, Optional, IO, Any
+
+from common import TEMP_DIR, SampleTreeNode, HOT_SPOT_BLACKLIST
+from ground_truth_generator import ROOT_NODE_NAME
+
+args: Any
 
 
 class CountItem:
@@ -14,12 +19,12 @@ class CountItem:
 
 
 class HotspotFinder(ABC):
-    TEMP_DIR = '.tmp'
-
     def __init__(self, display_limit: int, quiet: bool):
         self.display_limit: int = display_limit
         self.quiet: bool = quiet
         self.__file: Optional[IO[str]] = None
+        self.hot_spot_counter: Dict[str, CountItem] = collections.defaultdict(CountItem)
+        self.total_overwrite: Optional[int] = None
 
     def output(self, msg: str):
         if self.__file is not None:
@@ -57,8 +62,8 @@ class HotspotFinder(ABC):
 
     @classmethod
     def _touch_temp_dir(cls):
-        if not os.path.isdir(cls.TEMP_DIR):
-            os.makedirs(cls.TEMP_DIR)
+        if not os.path.isdir(TEMP_DIR):
+            os.makedirs(TEMP_DIR)
 
     @classmethod
     def _get_cmd(cls, cmd: str) -> str:
@@ -71,33 +76,42 @@ class HotspotFinder(ABC):
     def _get_total(counter: Dict[str, CountItem]) -> int:
         return sum(map(lambda i: i.amount, counter.values()))
 
-    def _show_rank(self, counter: Dict[str, CountItem], *, total_overwrite: Optional[int] = None):
-        total = self._get_total(counter) if total_overwrite is None else total_overwrite
+    def show_rank(self):
+        counter = self.hot_spot_counter
+        total = self._get_total(counter) if self.total_overwrite is None else self.total_overwrite
 
-        if not self.quiet and not total_overwrite:
+        if not self.quiet:
             print('Total: {} {}'.format(total, self.amount_type()))
 
-        for idx, func_name in enumerate(sorted(counter.keys(), key=lambda x: counter[x].amount, reverse=True)):
-            item = counter[func_name]
-            self.output('{},{},{}'.format(item.amount, item.amount / total * 100, func_name))
+        for idx, key in enumerate(sorted(counter.keys(), key=lambda x: counter[x].amount, reverse=True)):
+            item = counter[key]
             if not self.quiet:
                 print('{:2}. {} {}s ({:.2f}%) @ {}'.format(
                     idx + 1,
                     item.amount,
                     self.amount_type(),
                     item.amount / total * 100,
-                    func_name
+                    item.func_name
                 ), end='')
                 print()
 
             if idx + 1 == self.display_limit:
                 break
 
+    def print_to_file(self, *, percent: Optional[float] = None, maximum: Optional[int] = None):
+        counter = self.hot_spot_counter
+        for i, func_name in enumerate(sorted(counter.keys(), key=lambda k: counter[k].amount, reverse=True)):
+            if percent is not None and i >= len(counter) * percent:
+                break
+            if maximum is not None and i >= maximum:
+                break
+            self.output(func_name)
+
 
 class PerfHotspotFinder(HotspotFinder):
     FREQUENCY = 99999
-    PERF_FILEPATH = os.path.join(HotspotFinder.TEMP_DIR, 'perf.data')
-    JSON_FILEPATH = os.path.join(HotspotFinder.TEMP_DIR, 'perf.json')
+    PERF_FILEPATH = os.path.join(TEMP_DIR, 'perf.data')
+    JSON_FILEPATH = os.path.join(TEMP_DIR, 'perf.json')
 
     @classmethod
     def amount_type(cls) -> str:
@@ -133,22 +147,21 @@ class PerfHotspotFinder(HotspotFinder):
         with open(self.JSON_FILEPATH, 'r') as file:
             data = json.load(file)
 
-        counter: Dict[int, Dict[str, CountItem]] = collections.defaultdict(lambda: collections.defaultdict(CountItem))
         for sample in data['samples']:
             callchain = sample['callchain']
-            for depth, cc in enumerate(reversed(callchain)):
-                func_name = self.get_function_name(cc)
-                counter[depth][func_name].amount += 1
-                counter[depth][func_name].func_name = func_name
+            func_names = set()
+            for cc in callchain:
+                func_names.add(self.get_function_name(cc))
+            for func_name in func_names:
+                self.hot_spot_counter[func_name].amount += 1
+                self.hot_spot_counter[func_name].func_name = func_name
 
-        for depth in range(10):
-            print('===== Depth {} ====='.format(depth))
-            self._show_rank(counter[depth], total_overwrite=len(data['samples']))
+        self.total_overwrite = len(data['samples'])
 
 
 class CallgrindHotspotFinder(HotspotFinder):
-    PROFILE_FILEPATH = os.path.join(HotspotFinder.TEMP_DIR, 'callgrind.out')
-    RESULT_FILEPATH = os.path.join(HotspotFinder.TEMP_DIR, 'result.txt')
+    PROFILE_FILEPATH = os.path.join(TEMP_DIR, 'callgrind.out')
+    RESULT_FILEPATH = os.path.join(TEMP_DIR, 'result.txt')
 
     @classmethod
     def amount_type(cls) -> str:
@@ -170,8 +183,6 @@ class CallgrindHotspotFinder(HotspotFinder):
         return True
 
     def analyze(self):
-        counter: Dict[str, CountItem] = {}
-
         with open(self.RESULT_FILEPATH, 'r', encoding='utf8') as file:
             lines = file.readlines()
 
@@ -203,16 +214,14 @@ class CallgrindHotspotFinder(HotspotFinder):
                         item.func_name, item.file_path = t.split(' ', 1)
                     else:
                         item.func_name = t
-                    counter[item.func_name] = item
+                    self.hot_spot_counter[item.func_name] = item
             except (ValueError, KeyError):
                 print('Failed to parse line {}'.format(repr(line)))
                 raise
 
-        self._show_rank(counter)
-
 
 class PinHotSpotFinder(HotspotFinder):
-    PINTOOL_OUTPUT_PATH = os.path.join(HotspotFinder.TEMP_DIR, 'pintool.json')
+    PINTOOL_OUTPUT_PATH = os.path.join(TEMP_DIR, 'pintool.json')
 
     @classmethod
     def amount_type(cls) -> str:
@@ -222,7 +231,7 @@ class PinHotSpotFinder(HotspotFinder):
         cmd = self._get_cmd(cmd)
         self._touch_temp_dir()
 
-        rv = os.system('./pin/pin_root/pin -t ./pin/obj-intel64/SyscallTrace.so -o {output} -- {cmd}'.format(
+        rv = os.system('./pin/pin_root/pin -t ./pin/obj-intel64/SyscallSampler.so -o {output} -- {cmd}'.format(
             output=self.PINTOOL_OUTPUT_PATH, cmd=cmd
         ))
         if rv != 0:
@@ -232,28 +241,48 @@ class PinHotSpotFinder(HotspotFinder):
 
     def analyze(self):
         with open(self.PINTOOL_OUTPUT_PATH, 'r') as file:
-            data: list = json.load(file)
+            samples: list = json.load(file)
 
-        counter: Dict[str, CountItem] = collections.defaultdict(CountItem)
-        for sample in data:
-            if sample['type'] != 'syscall':
-                continue
-            for depth, trace in enumerate(reversed(sample['trace'])):
-                func_name = trace.split(' ', 1)[0]
-                counter[trace].amount += 1
-                counter[trace].func_name = func_name
+        root = SampleTreeNode(ROOT_NODE_NAME)
+        for sample in samples:
+            if sample['type'] == 'syscall':
+                traces = []
+                for trace in sample['trace']:
+                    if not trace.split(' at ', 1)[1].startswith('/lib/'):
+                        traces.append(trace)
+                root.add_traces(traces)
 
-        print('total different traces: {}x'.format(len(counter)))
-        self._show_rank(counter)
+        if args.kfactor > 0:
+            before = root.get_tree_size()
+            root.trim(args.kfactor)
+            after = root.get_tree_size()
+            # print('trimming with k={}, {} -> {} ({:.2f}%)'.format(args.kfactor, before, after, after / before * 100))
+
+        # print('========== Sampling Tree ==========')
+        # root.dump()
+        # print('===================================')
+
+        def visitor(node: SampleTreeNode):
+            name = node.to_str()
+            if name not in HOT_SPOT_BLACKLIST:
+                self.hot_spot_counter[name].amount += 1
+                self.hot_spot_counter[name].func_name = name
+        root.visit_tree(visitor)
+
+        self.total_overwrite = len(samples)
 
 
 def main():
     parser = ArgumentParser(prog='python hotspot_finder.py')
     parser.add_argument('-t', '--tool', default='perf', help='Profile tool to be used. Available options: perf, callgrind, pin. Default: perf')
-    parser.add_argument('-l', '--limit', type=int, default=20, help='Maximum amount of hotspot functions to be displayed. Default: 10')
-    parser.add_argument('-c', '--cmd', default='', help='The command of the program to be profiled. If not specified, you need to input it manually')
-    parser.add_argument('-o', '--output', default='', help='The path of the output file in csv format, if specified')
+    parser.add_argument('-l', '--limit', type=int, default=50, help='Maximum amount of hotspot functions to be displayed. Default: 10')
+    parser.add_argument('-c', '--cmd', help='The command of the program to be profiled. If not specified, you need to input it manually')
+    parser.add_argument('-o', '--output', default='hotspots.txt', help='The path of the output file in csv format, if specified')
+    parser.add_argument('-r', '--report', action='store_true', help='Report a read-able result to console')
+    parser.add_argument('-k', '--kfactor', type=int, default=1, help='The value k used in subtree trimming with tool pin, where nodes with <= k direct children will be trimmed. Default: 1')
     parser.add_argument('-q', '--quiet', action='store_true', help='Do not print any message unless exception occurs')
+
+    global args
     args = parser.parse_args()
 
     finder = HotspotFinder.create(args.tool, args.limit, args.quiet)
@@ -261,6 +290,9 @@ def main():
         finder.set_output_file(args.output)
     if finder.profile(args.cmd):
         finder.analyze()
+        if args.report:
+            finder.show_rank()
+        finder.print_to_file(maximum=args.limit)
 
 
 if __name__ == '__main__':

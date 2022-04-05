@@ -6,6 +6,7 @@
 #include <set>
 #include <string>
 #include <sstream>
+#include <cmath>
 #include "common.h"
 
 #define DEBUG_LOG (true)
@@ -17,7 +18,7 @@
 
 std::ostream* out = &std::cerr;
 std::vector<std::string> funcNames;
-std::vector<std::string> funcTrace;
+std::vector<std::string> funcStack;
 
 std::set<std::string> rtnToBeInjected;
 std::vector<std::string> targetRtnNames;
@@ -30,9 +31,9 @@ THREADID myThreadId = INVALID_THREADID;
 //                          Command line switches
 /* ===================================================================== */
 
-KNOB<std::string> KnobOutputFile(KNOB_MODE_WRITEONCE, "pintool", "o", "", "Specify file name for MyPinTool output");
+KNOB<std::string> KnobOutputFile(KNOB_MODE_WRITEONCE, "pintool", "o", "tracer.json", "Specify file name for MyPinTool output");
 KNOB<std::string> KnobTargetRtnNamesFile(KNOB_MODE_WRITEONCE, "pintool", "t", "", "Specify name of target routines to record start-end");
-KNOB<BOOL> KnobRecordSyscallTrace(KNOB_MODE_WRITEONCE, "pintool", "s", "", "Record traces at syscall sample");
+KNOB<BOOL> KnobDoReport(KNOB_MODE_WRITEONCE, "pintool", "r", "", "eport a read-able result to console");
 
 /* ===================================================================== */
 //                                Utilities
@@ -50,16 +51,6 @@ INT32 Usage()
 //                               Callbacks
 /* ===================================================================== */
 
-void dumpSamples()
-{
-    *out << "[" << std::endl;
-    for (BasicSample* sample : samples)
-    {
-        sample->printJson(out, "\t");
-    }
-    *out << std::endl << "]" << std::endl;
-}
-
 void onAppStart(VOID* v)
 {
 }
@@ -70,15 +61,40 @@ void onAppExit(INT32 code, VOID* v)
     {
         for (const std::string &name : rtnToBeInjected)
         {
-            std::cerr << "warn: failed to located routine " << name << " in all image" << std::endl;
+            LOG("warn: failed to located routine " + name + " in all image\n");
         }
     }
-    dumpSamples();
+    dumpSamples(out, samples);
+    if (KnobDoReport.Value())
+    {
+        int indent = 0;
+        for (BasicSample* sample : samples)
+        {
+            int delta = 0;
+            std::string msg;
+            if (sample->getType() == "syscall")
+            {
+                msg = "syscall: " + getSyscallName(((SyscallSample*)sample)->id);
+            }
+            else if (sample->getType() == "func_start")
+            {
+                msg = "func_start: " + ((FunctionActionSample*)sample)->funcName;
+                delta += 1;
+            }
+            else if (sample->getType() == "func_end")
+            {
+                msg = "func_end: " + ((FunctionActionSample*)sample)->funcName;
+                indent = std::max(0, indent - 1);
+            }
+            std::cerr << std::string(indent * 4, ' ') << msg << std::endl;
+            indent += delta;
+        }
+    }
 }
 
 void onThreadStart(THREADID threadId, CONTEXT* ctxt, INT32 flags, VOID* v)
 {
-    if (DEBUG_LOG) std::cerr << "Thread #" << threadId << " started" << std::endl;
+//    if (DEBUG_LOG) std::cerr << "Thread #" << threadId << " started" << std::endl;
     if (myThreadId == INVALID_THREADID)
     {
         myThreadId = threadId;
@@ -89,9 +105,16 @@ void onSyscall(THREADID threadId, CONTEXT *ctxt, SYSCALL_STANDARD std, VOID *v)
 {
     if (threadId != myThreadId) return;
 
+    for (int i = printedDepth; i < (int)funcStack.size(); i++)
+    {
+        samples.push_back(new FunctionActionSample(funcStack[i], "func_start"));
+    }
+    printedDepth = funcStack.size();
+
     SyscallSample *sample = new SyscallSample();
     sample->id = PIN_GetSyscallNumber(ctxt, std);
-    if (CALLTREE_LOG) std::cerr << std::string(funcTrace.size() * 2, ' ') << "syscall: " << getSyscallName(sample->id) << std::endl;
+    sample->showTrace = false;
+    if (CALLTREE_LOG) LOG(std::string(funcStack.size() * 2, ' ') + "syscall: " + getSyscallName(sample->id) + "\n");
 
     samples.push_back(sample);
 }
@@ -100,32 +123,37 @@ void beforeFunctionCall(THREADID threadId, UINT32 funcNameIdx)
 {
     if (threadId != myThreadId) return;
 
-    if (CALLTREE_LOG) std::cerr << std::string(funcTrace.size() * 2, ' ') << "function start: " << funcNames[funcNameIdx] << std::endl;
-    funcTrace.push_back(funcNames[funcNameIdx]);
+    std::string funcName = funcNames[funcNameIdx];
 
-    samples.push_back(new FunctionActionSample(funcNames[funcNameIdx], "func_start"));
+    if (CALLTREE_LOG) LOG(std::string(funcStack.size() * 2, ' ') + "function start: " + funcName + "\n");
+
+    funcStack.push_back(funcName);
 }
 
 void afterFunctionCall(THREADID threadId, UINT32 funcNameIdx)
 {
     if (threadId != myThreadId) return;
 
-    if (funcTrace.empty())
+    std::string funcName = funcNames[funcNameIdx];
+
+    if (funcStack.empty())
     {
-        if (DEBUG_LOG) std::cerr << "warn: func trace stack is empty" << std::endl;
+        LOG("warn: func trace stack is empty\n");
     }
     else
     {
-        if (DEBUG_LOG)
-        {
-            std::string topName = *funcTrace.rbegin();
-            if (topName != funcNames[funcNameIdx]) std::cerr << "mismatch: " << funcNames[funcNameIdx] << " " << topName << std::endl;
-        }
-        funcTrace.pop_back();
-    }
-    if (CALLTREE_LOG) std::cerr << std::string(funcTrace.size() * 2, ' ') << "function end: " << funcNames[funcNameIdx] << std::endl;
+        std::string topName = *funcStack.rbegin();
 
-    samples.push_back(new FunctionActionSample(funcNames[funcNameIdx], "func_end"));
+        if (printedDepth == (int)funcStack.size())
+        {
+            samples.push_back(new FunctionActionSample(funcName, "func_end"));
+            printedDepth = std::max(0, printedDepth - 1);
+        }
+
+        if (topName != funcName) LOG("mismatch: " + funcName + " " + topName + "\n");
+        funcStack.pop_back();
+    }
+    if (CALLTREE_LOG) LOG(std::string(funcStack.size() * 2, ' ') + "function end: " + funcName + "\n");
 }
 
 void onImageLoaded(IMG img, VOID* v)
