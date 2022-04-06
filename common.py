@@ -36,10 +36,11 @@ class AbstractTreeNode(ABC):
     def clean_children(self):
         raise NotImplementedError()
 
-    def get_tree_size(self) -> int:
+    def get_tree_size(self, filter_: Optional[Callable] = None) -> int:
         def visitor(node):
             nonlocal counter
-            counter += 1
+            if filter_ is None or filter_(node):
+                counter += 1
 
         counter = 0
         self.visit_tree(visitor)

@@ -2,6 +2,7 @@
 *.json
 *.txt
 *.tar.gz
+*.zip
 /callgrind*
 /time_cost
 /.idea
