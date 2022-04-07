@@ -275,9 +275,9 @@ class PinHotSpotFinder(HotspotFinder):
 def main():
     parser = ArgumentParser(prog='python hotspot_finder.py')
     parser.add_argument('-t', '--tool', default='perf', help='Profile tool to be used. Available options: perf, callgrind, pin. Default: perf')
-    parser.add_argument('-l', '--limit', type=int, default=50, help='Maximum amount of hotspot functions to be displayed. Default: 10')
+    parser.add_argument('-l', '--limit', type=int, default=50, help='Maximum amount of hotspot functions to be displayed. Default: 50')
     parser.add_argument('-c', '--cmd', help='The command of the program to be profiled. If not specified, you need to input it manually')
-    parser.add_argument('-o', '--output', default='hotspots.txt', help='The path of the output file in csv format, if specified')
+    parser.add_argument('-o', '--output', default='hotspots.txt', help='The path of the output file, if specified')
     parser.add_argument('-r', '--report', action='store_true', help='Report a read-able result to console')
     parser.add_argument('-k', '--kfactor', type=int, default=1, help='The value k used in subtree trimming with tool pin, where nodes with <= k direct children will be trimmed. Default: 1')
     parser.add_argument('-q', '--quiet', action='store_true', help='Do not print any message unless exception occurs')

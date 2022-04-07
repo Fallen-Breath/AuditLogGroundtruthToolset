@@ -32,8 +32,8 @@ THREADID myThreadId = INVALID_THREADID;
 /* ===================================================================== */
 
 KNOB<std::string> KnobOutputFile(KNOB_MODE_WRITEONCE, "pintool", "o", "tracer.json", "Specify file name for MyPinTool output");
-KNOB<std::string> KnobTargetRtnNamesFile(KNOB_MODE_WRITEONCE, "pintool", "t", "", "Specify name of target routines to record start-end");
-KNOB<BOOL> KnobDoReport(KNOB_MODE_WRITEONCE, "pintool", "r", "", "eport a read-able result to console");
+KNOB<std::string> KnobTargetRtnNamesFile(KNOB_MODE_WRITEONCE, "pintool", "i", "", "Specify name of text file storing target routines to record start-end");
+KNOB<BOOL> KnobDoReport(KNOB_MODE_WRITEONCE, "pintool", "r", "", "export a read-able result to console");
 
 /* ===================================================================== */
 //                                Utilities

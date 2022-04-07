@@ -5,7 +5,7 @@ from argparse import ArgumentParser
 from enum import Enum, auto
 from typing import List, Dict, Any, Collection
 
-from common import TEMP_DIR, HOT_SPOT_FILE_PATH, AbstractTreeNode, ROOT_NODE_NAME
+from common import TEMP_DIR, AbstractTreeNode, ROOT_NODE_NAME
 
 args: Any
 SYSCALL_SAMPLE_RESULT = os.path.join(TEMP_DIR, 'pintool_sample.json')
@@ -108,7 +108,7 @@ def pin(tool_name: str, output_file: str, pin_args: Dict[str, Any]):
 
 def do_trace():
     if not args.skip_pintool:
-        pin('SyscallTracer', SYSCALL_TRACE_RESULT, {'t': HOT_SPOT_FILE_PATH})
+        pin('SyscallTracer', SYSCALL_TRACE_RESULT, {'i': args.input})
     with open(SYSCALL_TRACE_RESULT, 'r', encoding='utf8') as file:
         tracing: List[dict] = json.load(file)
 
