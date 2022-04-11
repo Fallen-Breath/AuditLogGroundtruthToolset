@@ -1,9 +1,10 @@
+import collections
 import json
 import os
 import sys
 from argparse import ArgumentParser
 from enum import Enum, auto
-from typing import List, Dict, Any, Collection
+from typing import List, Dict, Any, Collection, Callable, Optional
 
 from common import TEMP_DIR, AbstractTreeNode, ROOT_NODE_NAME
 
@@ -30,34 +31,8 @@ class TracingTreeNode(AbstractTreeNode):
         self.children_list: List['TracingTreeNode'] = []
         self.depth = 0
         self.max_child_distance = 0
-
-    def add_child(self, child_node: 'TracingTreeNode'):
-        super().add_child(child_node)
-        self.children_list.append(child_node)
-
-    def remove_child(self, child_node: 'TracingTreeNode'):
-        try:
-            self.children_list.remove(child_node)
-        except ValueError:
-            pass
-
-    def clean_children(self):
-        self.children_list.clear()
-
-    def should_trim(self, k: int) -> bool:
-        return super().should_trim(k) or (super().should_trim(args.kleaf) and all(map(lambda c: c.is_leaf(), self.children)))
-
-    def __finalize(self, depth: int) -> int:
-        self.depth = depth
-        max_depth = depth
-        for child in self.children:
-            child_depth = child.__finalize(depth + 1)
-            max_depth = max(max_depth, child_depth)
-        self.max_child_distance = max_depth - self.depth
-        return max_depth
-
-    def finalize(self):
-        self.__finalize(0)
+        self.tree_data: Optional[dict] = None
+        self.tree_data_simple: Optional[dict] = None
 
     @property
     def children(self) -> Collection['TracingTreeNode']:
@@ -66,30 +41,71 @@ class TracingTreeNode(AbstractTreeNode):
     def to_str(self) -> str:
         return '{}: {}'.format(self.type.name, self.value) if self.type != self.Type.root else ROOT_NODE_NAME
 
-    def collect(self, node_list: list) -> dict:
-        self_data_basic = {
+    def add_child(self, child_node: 'TracingTreeNode'):
+        super().add_child(child_node)
+        self.children_list.append(child_node)
+
+    def insert_children(self, child_nodes: Collection['TracingTreeNode'], idx: int):
+        first_half = self.children_list[:idx]
+        second_half = self.children_list[idx:]
+        self.children_list.clear()
+        for node in first_half:
+            self.add_child(node)
+        for child_node in child_nodes:
+            self.add_child(child_node)
+        for node in second_half:
+            self.add_child(node)
+
+    def remove_child(self, child_node: 'TracingTreeNode') -> Optional[int]:
+        try:
+            idx = self.children_list.index(child_node)
+            self.children_list.pop(idx)
+            return idx
+        except ValueError:
+            return None
+
+    def clean_children(self):
+        self.children_list.clear()
+
+    def should_trim(self, k: int) -> bool:
+        return super().should_trim(k) or (super().should_trim(args.kleaf) and all(map(lambda c: c.is_leaf(), self.children)))
+
+    def finalize(self):
+        self.__collect_depth(0)
+        self.__collect_data()
+
+    def __collect_depth(self, depth: int) -> int:
+        self.depth = depth
+        max_depth = depth
+        for child in self.children:
+            child_depth = child.__collect_depth(depth + 1)
+            max_depth = max(max_depth, child_depth)
+        self.max_child_distance = max_depth - self.depth
+        return max_depth
+
+    def __collect_data(self) -> dict:
+        data_basic = {
             'type': self.type.name,
             'call_depth': self.depth,
             'max_child_distance': self.max_child_distance
         }
 
         if self.type == TracingTreeNode.Type.syscall:
-            self_data_basic['syscall'] = self.value
+            data_basic['syscall'] = self.value
         elif self.type == TracingTreeNode.Type.function:
-            self_data_basic['function'] = self.value
+            data_basic['function'] = self.value
 
-        self_data_full = self_data_basic.copy()
+        self.tree_data = data_basic.copy()
         child_list = []
         for child in self.children:
-            child_list.append(child.collect(node_list))
-        self_data_full['children'] = child_list
+            child_list.append(child.__collect_data())
+        self.tree_data['children'] = child_list
 
         if not self.is_root() and not self.is_leaf():
-            self_data_simple_children = self_data_basic.copy()
-            self_data_simple_children['children'] = list(map(lambda c: '{}:{}'.format(c.type.name, c.value), self.children))
-            node_list.append(self_data_simple_children)
+            self.tree_data_simple = data_basic.copy()
+            self.tree_data_simple['children'] = list(map(lambda c: '{}:{}'.format(c.type.name, c.value), self.children))
 
-        return self_data_full
+        return self.tree_data
 
 
 def pin(tool_name: str, output_file: str, pin_args: Dict[str, Any]):
@@ -104,6 +120,23 @@ def pin(tool_name: str, output_file: str, pin_args: Dict[str, Any]):
     if rv != 0:
         print('Pin tool execution failed! return value: {}'.format(rv))
         sys.exit(1)
+
+
+def aggregate_tree(root: TracingTreeNode) -> dict:
+    def visitor(node: TracingTreeNode):
+        if not node.is_root() and node.tree_data_simple is not None:
+            result[node.max_child_distance].append(node.tree_data_simple)
+
+    result: Dict[int, List[dict]] = collections.defaultdict(list)
+    root.visit_tree(visitor)
+    return dict(map(
+        lambda k: (k, result[k]),
+        sorted(result.keys())
+    ))
+
+
+def print_tree(root: AbstractTreeNode, writer: Callable[[str], Any]):
+    root.visit_tree(lambda n: writer('{}{}\n'.format('    ' * n.depth, n.to_str())))
 
 
 def do_trace():
@@ -132,27 +165,29 @@ def do_trace():
 
     tree_nonleaf_size_before_trim = root.get_tree_size(filter_=lambda n: not n.is_leaf())
     tree_size_before_trim = root.get_tree_size()
+
+    root.finalize()
+    with open('{}.raw_tree.txt'.format(args.output), 'w', encoding='utf8') as file:
+        print_tree(root, file.write)
+
     root.trim(args.kfactor)
     root.finalize()
 
-    # print('========== Tracing Tree ==========')
-    # root.dump()
-    # print('===================================')
-
-    lst = []
-    dt = root.collect(lst)
-
     trimmed_func_name_set = set()
-    root.visit_tree(lambda n: (trimmed_func_name_set.add(n.value) if n.type == TracingTreeNode.Type.function else 1))
+    root.visit_tree(lambda n: (trimmed_func_name_set.add(n.value) if n.type == TracingTreeNode.Type.function else None))
 
     with open('{}.nodes.json'.format(args.output), 'w', encoding='utf8') as file:
+        lst = list(filter(
+            lambda data: data is not None,
+            map(lambda n: n.tree_data_simple, root.get_all_nodes())
+        ))
         json.dump(lst, file, ensure_ascii=False, indent=2)
 
     with open('{}.tree.json'.format(args.output), 'w', encoding='utf8') as file:
-        json.dump(dt, file, ensure_ascii=False, indent=2)
+        json.dump(root.tree_data, file, ensure_ascii=False, indent=2)
 
-    with open('{}.tree.txt'.format(args.output), 'w', encoding='utf8') as file:
-        root.visit_tree(lambda n: file.write('{}{}\n'.format('    ' * n.depth, n.to_str())))
+    with open('{}.trimmed_tree.txt'.format(args.output), 'w', encoding='utf8') as file:
+        print_tree(root, file.write)
 
     with open('{}.summary.txt'.format(args.output), 'w', encoding='utf8') as file:
         file.write('k = {}\n'.format(args.kfactor))
@@ -165,6 +200,10 @@ def do_trace():
         file.write('Different syscall amount: {}\n'.format(len(syscall_set)))
         file.write('Different function amount: {}\n'.format(len(func_name_set)))
         file.write('Different function amount (trimmed): {}\n'.format(len(trimmed_func_name_set)))
+
+    aggregation_data = aggregate_tree(root)
+    with open('{}.aggregation.json'.format(args.output), 'w', encoding='utf8') as file:
+        json.dump(aggregation_data, file, ensure_ascii=False, indent=2)
 
 
 def main():

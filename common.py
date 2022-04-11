@@ -29,7 +29,11 @@ class AbstractTreeNode(ABC):
         child_node.__set_father(self)
 
     @abstractmethod
-    def remove_child(self, child_node: 'AbstractTreeNode'):
+    def insert_children(self, child_nodes: Collection['AbstractTreeNode'], idx: int):
+        raise NotImplementedError()
+
+    @abstractmethod
+    def remove_child(self, child_node: 'AbstractTreeNode') -> Optional[int]:
         raise NotImplementedError()
 
     @abstractmethod
@@ -51,6 +55,11 @@ class AbstractTreeNode(ABC):
         for child in self.children:
             child.visit_tree(visitor)
 
+    def get_all_nodes(self):
+        nodes = []
+        self.visit_tree(lambda node: nodes.append(node))
+        return nodes
+
     def should_trim(self, k: int) -> bool:
         return self.children_size <= k
 
@@ -58,9 +67,8 @@ class AbstractTreeNode(ABC):
         for child in list(self.children):
             child.trim(k)
         if not self.is_root() and not self.is_leaf() and self.should_trim(k):
-            self.father.remove_child(self)
-            for child in self.children:
-                self.father.add_child(child)
+            idx = self.father.remove_child(self)
+            self.father.insert_children(self.children, idx)
 
     ########################
     #      Properties      #
@@ -110,7 +118,23 @@ class SampleTreeNode(AbstractTreeNode):
         super().add_child(child_node)
         self.children_map[child_node.trace_entry] = child_node
 
-    def remove_child(self, child_node: 'SampleTreeNode'):
+    def insert_children(self, child_nodes: Collection['SampleTreeNode'], idx: Optional[int] = None):
+        first_half = []
+        second_half = []
+        for i, node in enumerate(self.children_map.values()):
+            if i < idx:
+                first_half.append(node)
+            else:
+                second_half.append(node)
+        self.children_map.clear()
+        for node in first_half:
+            self.add_child(node)
+        for child_node in child_nodes:
+            self.add_child(child_node)
+        for node in second_half:
+            self.add_child(node)
+
+    def remove_child(self, child_node: 'SampleTreeNode') -> Optional[int]:
         self.children_map.pop(child_node.trace_entry, None)
 
     def clean_children(self):
