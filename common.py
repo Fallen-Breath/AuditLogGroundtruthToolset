@@ -135,7 +135,12 @@ class SampleTreeNode(AbstractTreeNode):
             self.add_child(node)
 
     def remove_child(self, child_node: 'SampleTreeNode') -> Optional[int]:
+        try:
+            rv = list(self.children_map.keys()).index(child_node.trace_entry)
+        except ValueError:
+            rv = None
         self.children_map.pop(child_node.trace_entry, None)
+        return rv
 
     def clean_children(self):
         self.children_map.clear()
