@@ -8,4 +8,4 @@ echo "Sampling syscall traces..."
 python3 hotspot_finder.py -c "$1" -t pin -k 1 -l 200 -o hotspots.txt
 
 echo "Recording ground truth data..."
-python3 ground_truth_generator.py -c "$1" -k 2 --kl 4 -i hotspots.txt
+python3 ground_truth_generator.py -c "$1" -k 2 --kl 4 -i hotspots.txt -o output/ground_truth

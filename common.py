@@ -29,14 +29,6 @@ class AbstractTreeNode(ABC):
         child_node.__set_father(self)
 
     @abstractmethod
-    def insert_children(self, child_nodes: Collection['AbstractTreeNode'], idx: int):
-        raise NotImplementedError()
-
-    @abstractmethod
-    def remove_child(self, child_node: 'AbstractTreeNode') -> Optional[int]:
-        raise NotImplementedError()
-
-    @abstractmethod
     def clean_children(self):
         raise NotImplementedError()
 
@@ -64,11 +56,15 @@ class AbstractTreeNode(ABC):
         return self.children_size <= k
 
     def trim(self, k: int):
-        for child in list(self.children):
+        children_list = list(self.children)
+        self.clean_children()
+        for child in children_list:
             child.trim(k)
-        if not self.is_root() and not self.is_leaf() and self.should_trim(k):
-            idx = self.father.remove_child(self)
-            self.father.insert_children(self.children, idx)
+            if not child.is_leaf() and child.should_trim(k):
+                for grand_child in child.children:
+                    self.add_child(grand_child)
+            else:
+                self.add_child(child)
 
     ########################
     #      Properties      #
@@ -117,30 +113,6 @@ class SampleTreeNode(AbstractTreeNode):
     def add_child(self, child_node: 'SampleTreeNode'):
         super().add_child(child_node)
         self.children_map[child_node.trace_entry] = child_node
-
-    def insert_children(self, child_nodes: Collection['SampleTreeNode'], idx: Optional[int] = None):
-        first_half = []
-        second_half = []
-        for i, node in enumerate(self.children_map.values()):
-            if i < idx:
-                first_half.append(node)
-            else:
-                second_half.append(node)
-        self.children_map.clear()
-        for node in first_half:
-            self.add_child(node)
-        for child_node in child_nodes:
-            self.add_child(child_node)
-        for node in second_half:
-            self.add_child(node)
-
-    def remove_child(self, child_node: 'SampleTreeNode') -> Optional[int]:
-        try:
-            rv = list(self.children_map.keys()).index(child_node.trace_entry)
-        except ValueError:
-            rv = None
-        self.children_map.pop(child_node.trace_entry, None)
-        return rv
 
     def clean_children(self):
         self.children_map.clear()

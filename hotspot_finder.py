@@ -231,7 +231,7 @@ class PinHotSpotFinder(HotspotFinder):
         cmd = self._get_cmd(cmd)
         self._touch_temp_dir()
 
-        rv = os.system('./pin/pin_root/pin -t ./pin/obj-intel64/SyscallSampler.so -o {output} -- {cmd}'.format(
+        rv = os.system('./pintool/pin_root/pin -t ./pintool/obj-intel64/SyscallSampler.so -o {output} -- {cmd}'.format(
             output=self.PINTOOL_OUTPUT_PATH, cmd=cmd
         ))
         if rv != 0:

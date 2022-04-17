@@ -45,25 +45,6 @@ class TracingTreeNode(AbstractTreeNode):
         super().add_child(child_node)
         self.children_list.append(child_node)
 
-    def insert_children(self, child_nodes: Collection['TracingTreeNode'], idx: int):
-        first_half = self.children_list[:idx]
-        second_half = self.children_list[idx:]
-        self.children_list.clear()
-        for node in first_half:
-            self.add_child(node)
-        for child_node in child_nodes:
-            self.add_child(child_node)
-        for node in second_half:
-            self.add_child(node)
-
-    def remove_child(self, child_node: 'TracingTreeNode') -> Optional[int]:
-        try:
-            idx = self.children_list.index(child_node)
-            self.children_list.pop(idx)
-            return idx
-        except ValueError:
-            return None
-
     def clean_children(self):
         self.children_list.clear()
 
@@ -110,7 +91,7 @@ class TracingTreeNode(AbstractTreeNode):
 
 def pin(tool_name: str, output_file: str, pin_args: Dict[str, Any]):
     pin_args['o'] = output_file
-    command = './pin/pin_root/pin -t /pin/obj-intel64/{tool}.so{args} -- {cmd}'.format(
+    command = './pintool/pin_root/pin -t /pintool/obj-intel64/{tool}.so{args} -- {cmd}'.format(
         tool=tool_name,
         args=''.join(map(lambda k: ' -{k}{v}'.format(k=k, v=(' ' + pin_args[k]) if pin_args[k] is not None else ''), pin_args.keys())),
         cmd=args.cmd
@@ -144,6 +125,10 @@ def do_trace():
         pin('SyscallTracer', SYSCALL_TRACE_RESULT, {'i': args.input})
     with open(SYSCALL_TRACE_RESULT, 'r', encoding='utf8') as file:
         tracing: List[dict] = json.load(file)
+
+    output_dir = os.path.dirname(args.output)
+    if len(output_dir) > 0 and not os.path.isdir(output_dir):
+        os.makedirs(output_dir)
 
     root = TracingTreeNode(TracingTreeNode.Type.root, '')
     node = root
@@ -192,7 +177,7 @@ def do_trace():
     with open('{}.summary.txt'.format(args.output), 'w', encoding='utf8') as file:
         file.write('k = {}\n'.format(args.kfactor))
         file.write('k_leaf = {}\n'.format(args.kleaf))
-        file.write('Pintool tracer result line count: {}\n'.format(len(tracing)))
+        file.write('PinTool tracer result line count: {}\n'.format(len(tracing)))
         file.write('Tree node amount: {}\n'.format(tree_size_before_trim))
         file.write('Tree node amount (non-leaf): {}\n'.format(tree_nonleaf_size_before_trim))
         file.write('Tree node amount (trimmed): {}\n'.format(root.get_tree_size()))
