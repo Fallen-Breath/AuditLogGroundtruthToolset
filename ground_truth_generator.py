@@ -114,7 +114,7 @@ def aggregate_tree(root: TracingTreeNode) -> dict:
     Use as the last step
     """
     def has_compound_child(node: AbstractTreeNode):
-        return
+        return any(map(lambda n: not n.is_leaf(), node.children))
 
     result: Dict[int, list] = collections.defaultdict(list)
     level: int = 0
