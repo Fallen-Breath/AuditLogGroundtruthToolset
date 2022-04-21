@@ -6,6 +6,7 @@ from argparse import ArgumentParser
 from enum import Enum, auto
 from typing import List, Dict, Any, Collection, Callable, Optional
 
+from action_sim import ActionSimulator
 from common import TEMP_DIR, AbstractTreeNode, ROOT_NODE_NAME
 
 args: Any
@@ -39,7 +40,7 @@ class TracingTreeNode(AbstractTreeNode):
         return self.children_list
 
     def to_str(self) -> str:
-        return '{}: {}'.format(self.type.name, self.value) if self.type != self.Type.root else ROOT_NODE_NAME
+        return '{}:{}'.format(self.type.name, self.value) if self.type != self.Type.root else ROOT_NODE_NAME
 
     def add_child(self, child_node: 'TracingTreeNode'):
         super().add_child(child_node)
@@ -97,23 +98,47 @@ def pin(tool_name: str, output_file: str, pin_args: Dict[str, Any]):
         cmd=args.cmd
     )
 
-    rv = os.system(command)
+    sim = ActionSimulator(command)
+    if len(args.action) > 0:
+        sim.read_file(args.action)
+    rv = sim.run()
+    # rv = os.system(command)
     if rv != 0:
         print('Pin tool execution failed! return value: {}'.format(rv))
         sys.exit(1)
 
 
 def aggregate_tree(root: TracingTreeNode) -> dict:
-    def visitor(node: TracingTreeNode):
-        if not node.is_root() and node.tree_data_simple is not None:
-            result[node.max_child_distance].append(node.tree_data_simple)
+    """
+    The tree structure will be modified
+    Use as the last step
+    """
+    def has_compound_child(node: AbstractTreeNode):
+        return
 
-    result: Dict[int, List[dict]] = collections.defaultdict(list)
-    root.visit_tree(visitor)
-    return dict(map(
-        lambda k: (k, result[k]),
-        sorted(result.keys())
-    ))
+    result: Dict[int, list] = collections.defaultdict(list)
+    level: int = 0
+    while has_compound_child(root):
+        def visit(node: TracingTreeNode):
+            if node.is_leaf():
+                log_this_level.append(node.to_str())
+                return
+            if has_compound_child(node):
+                for child in node.children:
+                    visit(child)
+            else:
+                # aggregate this node
+                log_this_level.append({
+                    node.to_str(): list(map(lambda n: n.to_str(), node.children))
+                })
+                node.clean_children()
+
+        log_this_level = []
+        visit(root)
+        result[level] = log_this_level
+        level += 1
+
+    return result
 
 
 def print_tree(root: AbstractTreeNode, writer: Callable[[str], Any]):
@@ -182,6 +207,7 @@ def do_trace():
         file.write('Tree node amount (non-leaf): {}\n'.format(tree_nonleaf_size_before_trim))
         file.write('Tree node amount (trimmed): {}\n'.format(root.get_tree_size()))
         file.write('Tree node amount (trimmed, non-leaf): {}\n'.format(root.get_tree_size(filter_=lambda n: not n.is_leaf())))
+        file.write('Maximum node depth (trimmed): {}\n'.format(root.max_child_distance))
         file.write('Different syscall amount: {}\n'.format(len(syscall_set)))
         file.write('Different function amount: {}\n'.format(len(func_name_set)))
         file.write('Different function amount (trimmed): {}\n'.format(len(trimmed_func_name_set)))
@@ -196,6 +222,7 @@ def main():
     parser.add_argument('-c', '--cmd', help='The command of the program to be profiled')
     parser.add_argument('-i', '--input', default='hotspots.txt', help='The path to the hotspot file. Default: hotspots.txt')
     parser.add_argument('-o', '--output', default='ground_truth', help='The basic name of output files')
+    parser.add_argument('-a', '--action', default='', help='The action file for automatically executing the program')
     parser.add_argument('-k', '--kfactor', type=int, default=1, help='The factor k used in subtree trimming, where nodes with <= k direct children will be trimmed. Default: 1')
     parser.add_argument('--kl', '--kleaf', type=int, default=-1, help='The factor k, but used for a node who has its all children be leaf. Default: -1, resulting using the same value as kfactor')
     parser.add_argument('--skip-pintool', action='store_true', help='Do not run pin tool. Useful when you want to reuse the previous generated data')

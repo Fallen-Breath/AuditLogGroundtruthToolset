@@ -1,6 +1,6 @@
 import os
 
-PATH = 'batch'
+PATH = '../batch'
 
 if not os.path.isdir(PATH):
     os.makedirs(PATH)
