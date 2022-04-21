@@ -1,9 +1,15 @@
 import time
 from abc import ABC, abstractmethod
 from subprocess import Popen
-from typing import List, Type, Dict
+from typing import List, Type, Dict, Any
 
 import virtkey
+
+
+class ActionContext(Dict[str, Any]):
+    def __init__(self, vk: virtkey.virtkey):
+        super().__init__()
+        self.vk = vk
 
 
 class Action(ABC):
@@ -18,7 +24,7 @@ class Action(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def apply(self, v: virtkey.virtkey):
+    def apply(self, ctx: ActionContext):
         raise NotImplementedError()
 
 
@@ -70,12 +76,20 @@ class AbstractKeyAction(Action, ABC):
         return cls(arg)
 
     @classmethod
-    def press(cls, v: virtkey.virtkey, keycode: int):
-        v.press_keysym(keycode)
+    def __apply_key_delay(cls, ctx: ActionContext):
+        delay = ctx.get('key_delay')
+        if isinstance(delay, float) and delay > 0:
+            time.sleep(delay)
 
     @classmethod
-    def release(cls, v: virtkey.virtkey, keycode: int):
-        v.release_keysym(keycode)
+    def press(cls, ctx: ActionContext, keycode: int):
+        ctx.vk.press_keysym(keycode)
+        cls.__apply_key_delay(ctx)
+
+    @classmethod
+    def release(cls, ctx: ActionContext, keycode: int):
+        ctx.vk.release_keysym(keycode)
+        cls.__apply_key_delay(ctx)
 
 
 class KeyPressAction(AbstractKeyAction):
@@ -83,9 +97,9 @@ class KeyPressAction(AbstractKeyAction):
     def get_op_name(cls) -> str:
         return 'press'
 
-    def apply(self, v: virtkey.virtkey):
+    def apply(self, ctx: ActionContext):
         for ch in self.sequence:
-            self.press(v, ch)
+            self.press(ctx, ch)
 
 
 class KeyReleaseAction(AbstractKeyAction):
@@ -93,9 +107,9 @@ class KeyReleaseAction(AbstractKeyAction):
     def get_op_name(cls) -> str:
         return 'release'
 
-    def apply(self, v: virtkey.virtkey):
+    def apply(self, ctx: ActionContext):
         for ch in self.sequence:
-            self.release(v, ch)
+            self.release(ctx, ch)
 
 
 class KeyInputAction(AbstractKeyAction):
@@ -103,10 +117,10 @@ class KeyInputAction(AbstractKeyAction):
     def get_op_name(cls) -> str:
         return 'input'
 
-    def apply(self, v: virtkey.virtkey):
+    def apply(self, ctx: ActionContext):
         for ch in self.sequence:
-            self.press(v, ch)
-            self.release(v, ch)
+            self.press(ctx, ch)
+            self.release(ctx, ch)
 
 
 class SleepAction(Action):
@@ -118,11 +132,27 @@ class SleepAction(Action):
         return 'sleep'
 
     @classmethod
-    def create_from(cls, arg: str) -> 'Action':
+    def create_from(cls, arg: str) -> 'SleepAction':
         return SleepAction(float(arg))
 
-    def apply(self, v: virtkey.virtkey):
+    def apply(self, ctx: virtkey.virtkey):
         time.sleep(self.duration)
+
+
+class SetKeyDelayAction(Action):
+    def __init__(self, delay: float):
+        self.delay = delay
+
+    @classmethod
+    def get_op_name(cls) -> str:
+        return 'set_key_delay'
+
+    @classmethod
+    def create_from(cls, arg: str) -> 'SetKeyDelayAction':
+        return SetKeyDelayAction(float(arg))
+
+    def apply(self, ctx: ActionContext):
+        ctx['key_delay'] = self.delay
 
 
 class SetClipboardAction(Action):
@@ -137,7 +167,7 @@ class SetClipboardAction(Action):
     def create_from(cls, arg: str) -> 'SetClipboardAction':
         return SetClipboardAction(arg)
 
-    def apply(self, v: virtkey.virtkey):
+    def apply(self, ctx: virtkey.virtkey):
         import pyperclip
         pyperclip.copy(self.content)
 
@@ -149,6 +179,7 @@ class ActionSimulator:
         KeyInputAction,
         # doesn't work, why
         # SetClipboardAction,
+        SetKeyDelayAction,
         SleepAction
     ]
 
@@ -162,8 +193,9 @@ class ActionSimulator:
 
     def run(self) -> int:
         process = Popen(self.__command, shell=True)
+        ctx = ActionContext(self.__v)
         for action in self.__actions:
-            action.apply(self.__v)
+            action.apply(ctx)
         process.wait()
         return process.returncode
 
