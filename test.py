@@ -1,14 +1,22 @@
 import random
+import string
 
+chars = string.ascii_letters + string.digits
 a = 'fbduey'
 s = ''
 for i in range(45):
-    op = random.choice('dyp')
-    s += op
-    if op != 'p':
-        tt = random.choice('wlhwlh$')
-        n = random.randint(1, 5 if tt == 'w' else 20)
-        s += str(n) + tt
-    # s += random.choice(a)
+    if random.random() < 0.34:
+        op = random.randint(0, 5)
+        if op == 0:
+            ext = ''
+        elif op == 1:
+            ext = '+'
+        else:
+            ext = '+' + str(random.randint(0, 100))
+        print('input :e!{} readme.txt[enter]'.format(ext))
+    else:
+        print('input :f dummy{}.txt[enter]'.format(random.randint(0, 10)))
+        print('input i{}[esc]:w![enter]'.format(''.join([random.choice(chars) for i in range(random.randint(5, 20))])))
+
 
 print(s)
