@@ -1,7 +1,8 @@
+import random
 import time
 from abc import ABC, abstractmethod
 from subprocess import Popen
-from typing import List, Type, Dict, Any
+from typing import List, Type, Dict, Any, Optional
 
 import virtkey
 
@@ -10,6 +11,7 @@ class ActionContext(Dict[str, Any]):
     def __init__(self, vk: virtkey.virtkey):
         super().__init__()
         self.vk = vk
+        self.random = random.Random()
 
 
 class Action(ABC):
@@ -80,6 +82,10 @@ class AbstractKeyAction(Action, ABC):
         delay = ctx.get('key_delay')
         if isinstance(delay, float) and delay > 0:
             time.sleep(delay)
+        random_key_delay = ctx.get('random_key_delay')
+        if isinstance(delay, tuple):
+            l, r = random_key_delay
+            time.sleep(l + (r - l) * ctx.random.random())
 
     @classmethod
     def press(cls, ctx: ActionContext, keycode: int):
@@ -184,6 +190,40 @@ class SetClipboardAction(Action):
         pyperclip.copy(self.content)
 
 
+class SetRandomSeedAction(Action):
+    def __init__(self, seed: int):
+        self.seed = seed
+
+    @classmethod
+    def get_op_name(cls) -> str:
+        return 'set_seed'
+
+    @classmethod
+    def create_from(cls, arg: str) -> 'SetRandomSeedAction':
+        return SetRandomSeedAction(int(arg))
+
+    def apply(self, ctx: ActionContext):
+        ctx.random.seed(self.seed)
+
+
+class SetRandomKeyDelayAction(Action):
+    def __init__(self, lower_bound: float, upper_bound: float):
+        self.lower_bound = lower_bound
+        self.upper_bound = upper_bound
+
+    @classmethod
+    def get_op_name(cls) -> str:
+        return 'set_random_key_delay'
+
+    @classmethod
+    def create_from(cls, arg: str) -> 'SetRandomKeyDelayAction':
+        l, r = arg.split(' ', 1)
+        return SetRandomKeyDelayAction(float(l), float(r))
+
+    def apply(self, ctx: ActionContext):
+        ctx['random_key_delay'] = (self.lower_bound, self.upper_bound)
+
+
 class ActionSimulator:
     actions = [
         KeyPressAction,
@@ -193,11 +233,14 @@ class ActionSimulator:
         # doesn't work, why
         # SetClipboardAction,
         SetKeyDelayAction,
+        SetRandomSeedAction,
+        SetRandomKeyDelayAction,
         SleepAction
     ]
 
-    def __init__(self, command: str):
+    def __init__(self, command: str, *, cwd: Optional[str] = None):
         self.__command: str = command
+        self.__cwd = cwd
         self.__v = virtkey.virtkey()
         self.__actions: List[Action] = []
 
@@ -205,7 +248,7 @@ class ActionSimulator:
         self.__actions.append(action)
 
     def run(self) -> int:
-        process = Popen(self.__command, shell=True)
+        process = Popen(self.__command, shell=True, cwd=self.__cwd)
         ctx = ActionContext(self.__v)
         for action in self.__actions:
             action.apply(ctx)
