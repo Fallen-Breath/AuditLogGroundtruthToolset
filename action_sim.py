@@ -123,6 +123,18 @@ class KeyInputAction(AbstractKeyAction):
             self.release(ctx, ch)
 
 
+class MultikeyAction(AbstractKeyAction):
+    @classmethod
+    def get_op_name(cls) -> str:
+        return 'multikey'
+
+    def apply(self, ctx: ActionContext):
+        for ch in self.sequence:
+            self.press(ctx, ch)
+        for ch in reversed(self.sequence):
+            self.release(ctx, ch)
+
+
 class SleepAction(Action):
     def __init__(self, duration: float):
         self.duration = duration
@@ -177,6 +189,7 @@ class ActionSimulator:
         KeyPressAction,
         KeyReleaseAction,
         KeyInputAction,
+        MultikeyAction,
         # doesn't work, why
         # SetClipboardAction,
         SetKeyDelayAction,
