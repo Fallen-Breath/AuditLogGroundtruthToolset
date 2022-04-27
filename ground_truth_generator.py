@@ -2,6 +2,7 @@ import collections
 import json
 import os
 import sys
+import time
 from argparse import ArgumentParser
 from enum import Enum, auto
 from typing import List, Dict, Any, Collection, Callable, Optional
@@ -90,11 +91,14 @@ class TracingTreeNode(AbstractTreeNode):
         return self.tree_data
 
 
-def pin(tool_name: str, output_file: str, pin_args: Dict[str, Any]):
-    pin_args['o'] = output_file
+def pin(tool_name: str):
     here = os.path.abspath(os.path.dirname(__file__))
     pin_exe = os.path.join(here, 'pintool', 'pin_root', 'pin')
     pin_tool = os.path.join(here, 'pintool', 'obj-intel64', '{}.so'.format(tool_name))
+    pin_args = {
+        'i': os.path.join(here, args.input),
+        'o': os.path.join(here, SYSCALL_TRACE_RESULT),
+    }
 
     command = '{pin_exe} -t {pin_tool}{args} -- {cmd}'.format(
         pin_exe=pin_exe,
@@ -152,7 +156,7 @@ def print_tree(root: AbstractTreeNode, writer: Callable[[str], Any]):
 
 def do_trace():
     if args.cmd:
-        pin('SyscallTracer', SYSCALL_TRACE_RESULT, {'i': args.input})
+        pin('SyscallTracer')
     with open(SYSCALL_TRACE_RESULT, 'r', encoding='utf8') as file:
         tracing: List[dict] = json.load(file)
 
@@ -205,6 +209,7 @@ def do_trace():
         print_tree(root, file.write)
 
     with open('{}.summary.txt'.format(args.output), 'w', encoding='utf8') as file:
+        file.write('Ground truth generated at {}\n'.format(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())))
         file.write('k = {}\n'.format(args.kfactor))
         file.write('k_leaf = {}\n'.format(args.kleaf))
         file.write('PinTool tracer result line count: {}\n'.format(len(tracing)))
