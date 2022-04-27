@@ -1,0 +1,44 @@
+# init
+set_key_delay 0.02
+set_seed 0
+set_random_key_delay 0 0.05
+
+# startup wait
+sleep 5
+
+# open file
+input :e readme.txt[enter]
+
+# move cursor 1
+sleep 1
+input i
+input writing something at the beginning[enter]
+input [esc]
+input jjjjjjjjjjjjjjjj
+input llllll
+input kk
+input wwWeEebEbeEE
+input (()((())()(((()(()()))))())
+
+# move cursor 2
+sleep 1
+input 2lh2k((1+4(1-4+eW4Wb5bj-3jj2E2h3wj)-+4l5w1j5)3wE2(1h3W+e5W1-2-5k3j2W1+1e1E3h1+2l2E5-5)+4EwWk4Bee3)4)E4B5(2j3+5-1E2j1B4-3)-3e4Bl5ew2l2)5lW2E-5E5(E2+5+2Eh1b3-1EE1-e+2e5-
+input i
+input here i am
+input [esc]
+
+# navigate
+sleep 1
+press [ctrl_left]
+input dbuybybdbbeueuebuedbddbfbyueedddeffbdfeefdebbdedfddyuedbdyyefefdebeffdfyffbdfdue
+sleep 1
+input 47%98%89%87%99%8%72%93%61%8%9%19%12%94%10%49%26%11%40%9%9%73%8%9%53%60%19%60%61%58%
+release [ctrl_left]
+
+# cut / copy / paste
+sleep 1
+input d3wd2wy15lpy4wd10hppppy2ly10ly9hpy5wd1wpd13ld13hd13hy7$ppy8hpy5wy20hy4wy5wy6$pd2hppy12hpy9lpy14ld3wd12$pd11ld1wd1w
+
+# exit
+sleep 1
+input :q![enter]
