@@ -92,13 +92,18 @@ class TracingTreeNode(AbstractTreeNode):
 
 def pin(tool_name: str, output_file: str, pin_args: Dict[str, Any]):
     pin_args['o'] = output_file
-    command = './pintool/pin_root/pin -t /pintool/obj-intel64/{tool}.so{args} -- {cmd}'.format(
-        tool=tool_name,
+    here = os.path.abspath(os.path.dirname(__file__))
+    pin_exe = os.path.join(here, 'pintool', 'pin_root', 'pin')
+    pin_tool = os.path.join(here, 'pintool', 'obj-intel64', '{}.so'.format(tool_name))
+
+    command = '{pin_exe} -t {pin_tool}{args} -- {cmd}'.format(
+        pin_exe=pin_exe,
+        pin_tool=pin_tool,
         args=''.join(map(lambda k: ' -{k}{v}'.format(k=k, v=(' ' + pin_args[k]) if pin_args[k] is not None else ''), pin_args.keys())),
         cmd=args.cmd
     )
 
-    sim = ActionSimulator(command)
+    sim = ActionSimulator(command, cwd=args.wd)
     if len(args.action) > 0:
         sim.read_file(args.action)
     rv = sim.run()
@@ -146,7 +151,7 @@ def print_tree(root: AbstractTreeNode, writer: Callable[[str], Any]):
 
 
 def do_trace():
-    if not args.skip_pintool:
+    if args.cmd:
         pin('SyscallTracer', SYSCALL_TRACE_RESULT, {'i': args.input})
     with open(SYSCALL_TRACE_RESULT, 'r', encoding='utf8') as file:
         tracing: List[dict] = json.load(file)
@@ -219,13 +224,13 @@ def do_trace():
 
 def main():
     parser = ArgumentParser(prog='python ground_truth_generator.py')
-    parser.add_argument('-c', '--cmd', help='The command of the program to be profiled')
+    parser.add_argument('-c', '--cmd', help='The command of the program to be profiled. When not specified, nothing will be run, and it will use the previously generated data to process')
+    parser.add_argument('--wd', default='.', help='The path of the working directory')
     parser.add_argument('-i', '--input', default='hotspots.txt', help='The path to the hotspot file. Default: hotspots.txt')
     parser.add_argument('-o', '--output', default='ground_truth', help='The basic name of output files')
     parser.add_argument('-a', '--action', default='', help='The action file for automatically executing the program')
     parser.add_argument('-k', '--kfactor', type=int, default=1, help='The factor k used in subtree trimming, where nodes with <= k direct children will be trimmed. Default: 1')
     parser.add_argument('--kl', '--kleaf', type=int, default=-1, help='The factor k, but used for a node who has its all children be leaf. Default: -1, resulting using the same value as kfactor')
-    parser.add_argument('--skip-pintool', action='store_true', help='Do not run pin tool. Useful when you want to reuse the previous generated data')
     parser.add_argument('-q', '--quiet', action='store_true', help='Do not print any message unless exception occurs')
     global args
     args = parser.parse_args()
