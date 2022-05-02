@@ -8,6 +8,11 @@ ROOT_NODE_NAME = '#ROOT'
 HOT_SPOT_BLACKLIST = {ROOT_NODE_NAME, '.text'}
 
 
+def touch_dir(dir_path: str):
+    if not os.path.isdir(dir_path):
+        os.makedirs(dir_path)
+
+
 class AbstractTreeNode(ABC):
     def __init__(self):
         self.father: Optional['AbstractTreeNode'] = None

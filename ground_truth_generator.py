@@ -214,6 +214,7 @@ def do_trace():
         file.write('k_leaf = {}\n'.format(args.kleaf))
         file.write('PinTool tracer result line count: {}\n'.format(len(tracing)))
         file.write('Tree node amount: {}\n'.format(tree_size_before_trim))
+        file.write('Tree node amount (leaf): {}\n'.format(tree_size_before_trim - tree_nonleaf_size_before_trim))
         file.write('Tree node amount (non-leaf): {}\n'.format(tree_nonleaf_size_before_trim))
         file.write('Tree node amount (trimmed): {}\n'.format(root.get_tree_size()))
         file.write('Tree node amount (trimmed, non-leaf): {}\n'.format(root.get_tree_size(filter_=lambda n: not n.is_leaf())))
@@ -234,8 +235,8 @@ def main():
     parser.add_argument('-i', '--input', default='hotspots.txt', help='The path to the hotspot file. Default: hotspots.txt')
     parser.add_argument('-o', '--output', default='ground_truth', help='The basic name of output files')
     parser.add_argument('-a', '--action', default='', help='The action file for automatically executing the program')
-    parser.add_argument('-k', '--kfactor', type=int, default=1, help='The factor k used in subtree trimming, where nodes with <= k direct children will be trimmed. Default: 1')
-    parser.add_argument('--kl', '--kleaf', type=int, default=-1, help='The factor k, but used for a node who has its all children be leaf. Default: -1, resulting using the same value as kfactor')
+    parser.add_argument('-k', '--kfactor', type=int, default=2, help='The factor k used in subtree trimming, where nodes with <= k direct children will be trimmed. Default: 1')
+    parser.add_argument('--kl', '--kleaf', type=int, default=4, help='The factor k, but used for a node who has its all children be leaf. Default: -1, resulting using the same value as kfactor')
     parser.add_argument('-q', '--quiet', action='store_true', help='Do not print any message unless exception occurs')
     global args
     args = parser.parse_args()
