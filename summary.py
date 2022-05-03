@@ -17,7 +17,7 @@ def main():
         f.write('groundtruth,')
         f.write(','.join(map(str, header)))
         f.write('\n')
-        for i in range(1, 41):
+        for i in range(1, 100 + 1):
             lines = open('output/data{}/ground_truth.summary.txt'.format(i)).readlines()
             lines.pop(0)
             nums = ['data{}'.format(i)]

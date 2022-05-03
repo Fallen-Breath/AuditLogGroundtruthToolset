@@ -28,7 +28,7 @@ class ActionGenerator:
     def write_header(self):
         self.writer.write('sleep 5\n')
         self.writer.write('set_key_delay 0.01\n')
-        self.writer.write('set_seed 0\n')
+        self.writer.write('set_seed {}\n'.format(self.rnd.randint(0, 1000000000)))
         self.writer.write('set_random_key_delay 0 0.05\n')
         self.writer.write('\n')
         self.writer.write('input :e readme.txt[enter]\n')
