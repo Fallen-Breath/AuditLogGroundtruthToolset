@@ -173,23 +173,6 @@ class SetKeyDelayAction(Action):
         ctx['key_delay'] = self.delay
 
 
-class SetClipboardAction(Action):
-    def __init__(self, content: str):
-        self.content = content
-
-    @classmethod
-    def get_op_name(cls) -> str:
-        return 'set_clipboard'
-
-    @classmethod
-    def create_from(cls, arg: str) -> 'SetClipboardAction':
-        return SetClipboardAction(arg)
-
-    def apply(self, ctx: virtkey.virtkey):
-        import pyperclip
-        pyperclip.copy(self.content)
-
-
 class SetRandomSeedAction(Action):
     def __init__(self, seed: int):
         self.seed = seed
@@ -230,8 +213,6 @@ class ActionSimulator:
         KeyReleaseAction,
         KeyInputAction,
         MultikeyAction,
-        # doesn't work, why
-        # SetClipboardAction,
         SetKeyDelayAction,
         SetRandomSeedAction,
         SetRandomKeyDelayAction,
@@ -279,6 +260,16 @@ def example():
     sim.run()
 
 
+def hint():
+    print('Available actions:')
+    for action in ActionSimulator.actions:
+        print('  {}'.format(action.get_op_name()))
+    print()
+    print('Special keys:')
+    for key_name in AbstractKeyAction.SPECIAL_KEYS.keys():
+        print('  {}'.format(key_name))
+
+
 if __name__ == '__main__':
     # example()
-    pass
+    hint()
