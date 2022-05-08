@@ -9,6 +9,8 @@ HOT_SPOT_BLACKLIST = {ROOT_NODE_NAME, '.text'}
 
 
 def touch_dir(dir_path: str):
+    if dir_path == '':
+        dir_path = '.'
     if not os.path.isdir(dir_path):
         os.makedirs(dir_path)
 

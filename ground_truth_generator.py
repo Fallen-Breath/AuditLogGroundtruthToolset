@@ -202,8 +202,8 @@ def main():
     parser = ArgumentParser(prog='python ground_truth_generator.py')
     parser.add_argument('-i', '--input', default='pintool_trace.json', help='The path to the trace file. Default: pintool_trace.json')
     parser.add_argument('-o', '--output', default='ground_truth', help='The basic name of output files. Default: ground_truth, with which output files will be like ground_truth.tree.json')
-    parser.add_argument('-k', '--kfactor', type=int, default=2, help='The factor k used in subtree trimming, where nodes with <= k direct children will be trimmed. Default: 1')
-    parser.add_argument('--kl', '--kleaf', type=int, default=4, help='The factor k, but used for a node who has its all children be leaf. Default: -1, resulting using the same value as kfactor')
+    parser.add_argument('-k', '--kfactor', type=int, default=2, help='The factor k used in subtree trimming, where nodes with <= k direct children will be trimmed. Default: 2')
+    parser.add_argument('--kl', '--kleaf', type=int, default=4, help='The factor k, but used for a node who has its all children be leaf. Default: 4')
     global args
     args = parser.parse_args()
     args.kleaf = args.kl

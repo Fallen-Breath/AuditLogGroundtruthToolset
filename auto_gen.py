@@ -7,6 +7,7 @@ from common import touch_dir
 
 def main():
     parser = ArgumentParser(prog='python auto_gen.py')
+    parser.add_argument('-i', '--input', default='hotspots.txt', help='The path to the hotspot file. Default: hotspots.txt')
     parser.add_argument('-o', '--output', default='output', help='The directory name of the generated ground truths')
     parser.add_argument('-n', '--number', type=int, default=20, help='The amount of the data')
     parser.add_argument('--an', type=int, help='The amount of the actions per data')
@@ -25,7 +26,7 @@ def main():
         trace_file = os.path.join(dir_name, 'pintool_trace.json')
         gt_file_base = os.path.join(dir_name, 'ground_truth')
         os.system('python3 action_gen.py -o {}'.format(action_file) + (' -n {}'.format(args.an) if args.an is not None else ''))
-        os.system('python3 syscall_tracer.py -c "vim" -i hotspots.txt -o {} -a {} --wd ./vimworkspace'.format(trace_file, action_file))
+        os.system('python3 syscall_tracer.py -c "vim" -i {} -o {} -a {} --wd ./vimworkspace'.format(args.input, trace_file, action_file))
         os.system('python3 ground_truth_generator.py -i {} -o {}'.format(trace_file, gt_file_base))
 
     time_cost = time.time() - time_start
