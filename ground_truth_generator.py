@@ -1,13 +1,11 @@
 import collections
 import json
 import os
-import sys
 import time
 from argparse import ArgumentParser
 from enum import Enum, auto
 from typing import List, Dict, Any, Collection, Callable, Optional
 
-from action_sim import ActionSimulator
 from common import TEMP_DIR, AbstractTreeNode, ROOT_NODE_NAME
 
 args: Any
@@ -91,32 +89,6 @@ class TracingTreeNode(AbstractTreeNode):
         return self.tree_data
 
 
-def pin(tool_name: str):
-    here = os.path.abspath(os.path.dirname(__file__))
-    pin_exe = os.path.join(here, 'pintool', 'pin_root', 'pin')
-    pin_tool = os.path.join(here, 'pintool', 'obj-intel64', '{}.so'.format(tool_name))
-    pin_args = {
-        'i': os.path.join(here, args.input),
-        'o': os.path.join(here, SYSCALL_TRACE_RESULT),
-    }
-
-    command = '{pin_exe} -t {pin_tool}{args} -- {cmd}'.format(
-        pin_exe=pin_exe,
-        pin_tool=pin_tool,
-        args=''.join(map(lambda k: ' -{k}{v}'.format(k=k, v=(' ' + pin_args[k]) if pin_args[k] is not None else ''), pin_args.keys())),
-        cmd=args.cmd
-    )
-
-    sim = ActionSimulator(command, cwd=args.wd)
-    if len(args.action) > 0:
-        sim.read_file(args.action)
-    rv = sim.run()
-    # rv = os.system(command)
-    if rv != 0:
-        print('Pin tool execution failed! return value: {}'.format(rv))
-        sys.exit(1)
-
-
 def aggregate_tree(root: TracingTreeNode) -> dict:
     """
     The tree structure will be modified
@@ -155,9 +127,7 @@ def print_tree(root: AbstractTreeNode, writer: Callable[[str], Any]):
 
 
 def do_trace():
-    if args.cmd:
-        pin('SyscallTracer')
-    with open(SYSCALL_TRACE_RESULT, 'r', encoding='utf8') as file:
+    with open(args.input, 'r', encoding='utf8') as file:
         tracing: List[dict] = json.load(file)
 
     output_dir = os.path.dirname(args.output)
@@ -230,14 +200,10 @@ def do_trace():
 
 def main():
     parser = ArgumentParser(prog='python ground_truth_generator.py')
-    parser.add_argument('-c', '--cmd', help='The command of the program to be profiled. When not specified, nothing will be run, and it will use the previously generated data to process')
-    parser.add_argument('--wd', default='.', help='The path of the working directory')
-    parser.add_argument('-i', '--input', default='hotspots.txt', help='The path to the hotspot file. Default: hotspots.txt')
-    parser.add_argument('-o', '--output', default='ground_truth', help='The basic name of output files')
-    parser.add_argument('-a', '--action', default='', help='The action file for automatically executing the program')
+    parser.add_argument('-i', '--input', default='pintool_trace.json', help='The path to the trace file. Default: pintool_trace.json')
+    parser.add_argument('-o', '--output', default='ground_truth', help='The basic name of output files. Default: ground_truth, with which output files will be like ground_truth.tree.json')
     parser.add_argument('-k', '--kfactor', type=int, default=2, help='The factor k used in subtree trimming, where nodes with <= k direct children will be trimmed. Default: 1')
     parser.add_argument('--kl', '--kleaf', type=int, default=4, help='The factor k, but used for a node who has its all children be leaf. Default: -1, resulting using the same value as kfactor')
-    parser.add_argument('-q', '--quiet', action='store_true', help='Do not print any message unless exception occurs')
     global args
     args = parser.parse_args()
     args.kleaf = args.kl

@@ -9,6 +9,7 @@ hotspots.txt
 *.data
 *.old
 *.csv
+/action.act
 /vimworkspace/dummy*.txt
 /output
 /pintool/obj-intel64/

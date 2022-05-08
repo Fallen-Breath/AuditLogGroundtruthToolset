@@ -39,6 +39,7 @@ class ActionGenerator:
         self.writer.write('input :q![enter]\n')
 
     def run(self, amount: int):
+        # reference: https://zhuanlan.zhihu.com/p/51440836
         actions = [
             self.insert, self.insert, self.insert,
             self.save,
@@ -146,7 +147,7 @@ class ActionGenerator:
 
 
 def main():
-    parser = ArgumentParser(prog='python ground_truth_generator.py')
+    parser = ArgumentParser(prog='python action_gen.py')
     parser.add_argument('-o', '--output', default='action.act', help='The file name of the generated action file')
     parser.add_argument('-n', '--number', type=int, default=500, help='The amount of the actions')
 
