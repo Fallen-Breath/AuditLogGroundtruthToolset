@@ -4,6 +4,8 @@
 
 依赖 python3，需要安装 virtkey 库
 
+需要将 intel pin 的文件夹复制为 `./pintool/pin_root/`，即让 `./pintool/pin_root/pin` 为可执行文件 pin 的路径
+
 ### 基本使用流程
 
 1. 使用 `hotspot_finder.py` 运行目标程序，生成热点函数列表 hotspots.txt
@@ -183,11 +185,53 @@
 
 pintool 目录
 
-- `pintool/common.cpp`, `pintool/common.h`：复用工具库
-- `pintool/make.sh`：pintool 的构造脚本
+- `pintool/common.cpp`, `pintool/common.h`
+
+  一些常用的代码，单独拎出来以便于复用
+  
+- `pintool/make.sh`
+
+  配置好的，用于一键编译 pintool 的脚本
+
+  pintool 的构造脚本
+  
 - `pintool/makefile`, `pintool/makefile.rules`
+
+  与编译 pintool 相关的文件
+
 - `pintool/SyscallSampler.cpp`
+
+  采样在系统调用发生时目标程序的调用栈
+  
+  用法示例（需编译好 pintool）：
+  
+  ```bash
+  cd ./pintool
+  ./pin_root/pin -t obj-intel64/SyscallSampler.so -o my_sampling_result.json -- pwd
+  ```
+
+  **参数**：
+  
+  - `-h`：输出帮助信息
+  - `-o`：设置输出的系统调用堆栈采样数据文件的路径。默认值：sampler.json
+
+
 - `pintool/SyscallTracer.cpp`
 
+  基于热点函数列表插桩并运行目标程序
+  
+  用法示例（需编译好 pintool）：
+  
+  ```bash
+  cd ./pintool
+  ./pin_root/pin -t obj-intel64/SyscallSampler.so -o my_tracing_result.json -- pwd
+  ```
+
+  **参数**：
+  
+  - `-h`：输出帮助信息
+  - `-i`：设置储存着被插桩的函数名的文本文件，一行代表一个函数名，通常也即热点函数文件。需给定，否则将不会插桩任何函数
+  - `-o`：设置输出的系统调用追踪数据文件的路径。默认值：tracer.json
+  - `-r`：在控制台中输出易读的追踪树
 
 
