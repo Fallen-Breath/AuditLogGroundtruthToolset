@@ -4,7 +4,9 @@
 
 ## 概述
 
-依赖 python3，需要安装 virtkey 库
+依赖 python3
+
+需要安装 virtkey 库（`action_sum.py`, `hotspot_finder.py`, `syscall_tracer.py`）
 
 需要将 intel pin 的文件夹复制为 `./pintool/pin_root/`，即让 `./pintool/pin_root/pin` 为可执行文件 pin 的路径
 
@@ -128,7 +130,13 @@ python3 auto_gen.py --start-index 20 -an 100 -i myhotspots.txt
 
 #### gen.sh
 
-一个简单的从 0 开始生成基于 vim 的 ground truth 的脚本
+一个简单的从 0 开始生成基于 vim 的 ground truth 的脚本，操作包括：
+
+1. 准备 vimworkspace 中的文件，即将 `vimworkspace/readme.txt` 复制粘贴至 `vimworkspace/dummy0.txt` ……  `vimworkspace/dummy10.txt`
+2. 生成一份含 500 条动作的用户动作脚本文件 `action.act`
+3. 使用 pintool 插桩运行目标程序，收集热点函数至 `hotspots.txt`
+4. 针对热点函数列表，使用 pintool 插桩再次运行目标程序，采集插桩追踪数据至 `pintool_trace.json`
+5. 分析插桩追踪数据，生成 ground truth
 
 #### hotspot_finder.py
 
