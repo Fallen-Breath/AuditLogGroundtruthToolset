@@ -1,5 +1,6 @@
 import os.path
 import random
+import shutil
 import string
 from argparse import ArgumentParser
 from typing import IO, Callable, List
@@ -146,12 +147,21 @@ class ActionGenerator:
         self.writer.write('sleep {}\n'.format(round(self.rnd.random() * 2, 3)))
 
 
+def prepare_work_space():
+    for i in range(0, 10 + 1):
+        shutil.copy('vimworkspace/readme.txt', 'vimworkspace/dummy{}.txt'.format(i))
+
+
 def main():
     parser = ArgumentParser(prog='python action_gen.py')
     parser.add_argument('-o', '--output', default='action.act', help='The file name of the generated action file')
     parser.add_argument('-n', '--number', type=int, default=500, help='The amount of the actions')
+    parser.add_argument('--prepare-vim-workspace', action='store_true', help='A tool to prepare vim workspace (copy readme.txt into dummy.txt)')
 
     args = parser.parse_args()
+    if args.prepare_vim_workspace:
+        prepare_work_space()
+        return
 
     touch_dir(os.path.dirname(args.output))
     with open(args.output, 'w', encoding='utf8') as file:
