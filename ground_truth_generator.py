@@ -9,8 +9,6 @@ from typing import List, Dict, Any, Collection, Callable, Optional
 from common import TEMP_DIR, AbstractTreeNode, ROOT_NODE_NAME
 
 args: Any
-SYSCALL_SAMPLE_RESULT = os.path.join(TEMP_DIR, 'pintool_sample.json')
-SYSCALL_TRACE_RESULT = os.path.join(TEMP_DIR, 'pintool_trace.json')
 
 
 def _touch_temp_dir():

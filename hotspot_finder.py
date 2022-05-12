@@ -5,7 +5,8 @@ from abc import ABC, abstractmethod
 from argparse import ArgumentParser
 from typing import Dict, Literal, Optional, IO, Any
 
-from common import TEMP_DIR, SampleTreeNode, HOT_SPOT_BLACKLIST
+from action_sim import ActionSimulator
+from common import TEMP_DIR, SampleTreeNode, HOT_SPOT_BLACKLIST, touch_dir, HERE
 from ground_truth_generator import ROOT_NODE_NAME
 
 args: Any
@@ -32,12 +33,20 @@ class HotspotFinder(ABC):
             self.__file.write('\n')
 
     def set_output_file(self, output_file_name: str):
+        touch_dir(os.path.dirname(output_file_name))
         self.__file = open(output_file_name, 'w', encoding='utf8')
 
     def stop(self):
         if self.__file is not None:
             self.__file.close()
             self.__file = None
+
+    @classmethod
+    def run_command(cls, command: str) -> int:
+        sim = ActionSimulator(command, cwd=args.wd)
+        if len(args.action) > 0:
+            sim.read_file(args.action)
+        return sim.run()
 
     @classmethod
     @abstractmethod
@@ -121,7 +130,7 @@ class PerfHotspotFinder(HotspotFinder):
         cmd = self._get_cmd(cmd)
         self._touch_temp_dir()
 
-        rv = os.system('perf record -g -e cpu-clock:pppH -F {freq} -o {output} -- {cmd}'.format(
+        rv = self.run_command('perf record -g -e cpu-clock:pppH -F {freq} -o {output} -- {cmd}'.format(
             freq=self.FREQUENCY, output=self.PERF_FILEPATH, cmd=cmd
         ))
         if rv != 0:
@@ -170,12 +179,12 @@ class CallgrindHotspotFinder(HotspotFinder):
     def profile(self, cmd: str) -> bool:
         cmd = self._get_cmd(cmd)
         self._touch_temp_dir()
-        rv = os.system('valgrind --tool=callgrind -q --callgrind-out-file={output} {cmd}'.format(output=self.PROFILE_FILEPATH, cmd=cmd))
+        rv = self.run_command('valgrind --tool=callgrind -q --callgrind-out-file={output} {cmd}'.format(output=self.PROFILE_FILEPATH, cmd=cmd))
         if rv != 0:
             print('Failed to profile with valgrind, exit')
             return False
 
-        rv = os.system('callgrind_annotate {} > {}'.format(self.PROFILE_FILEPATH, self.RESULT_FILEPATH))
+        rv = self.run_command('callgrind_annotate {} > {}'.format(self.PROFILE_FILEPATH, self.RESULT_FILEPATH))
         if rv != 0:
             print('Failed to export callgrind data, exit')
             return False
@@ -221,7 +230,7 @@ class CallgrindHotspotFinder(HotspotFinder):
 
 
 class PinHotSpotFinder(HotspotFinder):
-    PINTOOL_OUTPUT_PATH = os.path.join(TEMP_DIR, 'pintool.json')
+    PINTOOL_OUTPUT_PATH = os.path.join(TEMP_DIR, 'pintool_sample.json')
 
     @classmethod
     def amount_type(cls) -> str:
@@ -230,8 +239,11 @@ class PinHotSpotFinder(HotspotFinder):
     def profile(self, cmd: str) -> bool:
         cmd = self._get_cmd(cmd)
         self._touch_temp_dir()
+        pin_path = os.path.join(HERE, './pintool/pin_root/pin')
+        pintool_path = os.path.join(HERE, './pintool/obj-intel64/SyscallSampler.so')
 
-        rv = os.system('./pintool/pin_root/pin -t ./pintool/obj-intel64/SyscallSampler.so -o {output} -- {cmd}'.format(
+        rv = self.run_command('{pin} -t {pintool} -o {output} -- {cmd}'.format(
+            pin=pin_path, pintool=pintool_path,
             output=self.PINTOOL_OUTPUT_PATH, cmd=cmd
         ))
         if rv != 0:
@@ -265,7 +277,7 @@ class PinHotSpotFinder(HotspotFinder):
         def visitor(node: SampleTreeNode):
             name = node.to_str()
             if name not in HOT_SPOT_BLACKLIST:
-                self.hot_spot_counter[name].amount += 1
+                self.hot_spot_counter[name].amount += node.sample_count
                 self.hot_spot_counter[name].func_name = name
         root.visit_tree(visitor)
 
@@ -277,9 +289,11 @@ def main():
     parser.add_argument('-t', '--tool', default='perf', help='Profile tool to be used. Available options: perf, callgrind, pin. Default: perf')
     parser.add_argument('-l', '--limit', type=int, default=100, help='Maximum amount of hotspot functions to be displayed. Default: 100')
     parser.add_argument('-c', '--cmd', help='The command of the program to be profiled. If not specified, you need to input it manually')
+    parser.add_argument('--wd', default='.', help='The path of the working directory. Default: current directory')
     parser.add_argument('-o', '--output', default='hotspots.txt', help='The path of the output file. Default: hotspots.txt')
     parser.add_argument('-r', '--report', action='store_true', help='Report a read-able result to console')
     parser.add_argument('-k', '--kfactor', type=int, default=1, help='The value k used in subtree trimming with tool pin, where nodes with <= k direct children will be trimmed. Default: 1')
+    parser.add_argument('-a', '--action', default='', help='The action file for automatically executing the program')
     parser.add_argument('-q', '--quiet', action='store_true', help='Do not print any message unless exception occurs')
 
     global args

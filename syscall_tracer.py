@@ -4,7 +4,7 @@ from argparse import ArgumentParser
 from typing import Any
 
 from action_sim import ActionSimulator
-from common import TEMP_DIR
+from common import TEMP_DIR, HERE
 
 PIN_TOOL_NAME = 'SyscallTracer'
 args: Any
@@ -16,12 +16,11 @@ def _touch_temp_dir():
 
 
 def pin_trace():
-    here = os.path.abspath(os.path.dirname(__file__))
-    pin_exe = os.path.join(here, 'pintool', 'pin_root', 'pin')
-    pin_tool = os.path.join(here, 'pintool', 'obj-intel64', '{}.so'.format(PIN_TOOL_NAME))
+    pin_exe = os.path.join(HERE, 'pintool', 'pin_root', 'pin')
+    pin_tool = os.path.join(HERE, 'pintool', 'obj-intel64', '{}.so'.format(PIN_TOOL_NAME))
     pin_args = {
-        'i': os.path.join(here, args.input),
-        'o': os.path.join(here, args.output),
+        'i': os.path.join(HERE, args.input),
+        'o': os.path.join(HERE, args.output),
     }
 
     command = '{pin_exe} -t {pin_tool}{args} -- {cmd}'.format(
@@ -43,7 +42,7 @@ def pin_trace():
 def main():
     parser = ArgumentParser(prog='python ground_truth_generator.py')
     parser.add_argument('-c', '--cmd', help='The command of the program to be profiled')
-    parser.add_argument('--wd', default='.', help='The path of the working directory')
+    parser.add_argument('--wd', default='.', help='The path of the working directory. Default: current directory')
     parser.add_argument('-i', '--input', default='hotspots.txt', help='The path to the hotspot file. Default: hotspots.txt')
     parser.add_argument('-o', '--output', default='pintool_trace.json', help='The path of the output trace file. Default: pintool_trace.json')
     parser.add_argument('-a', '--action', default='', help='The action file for automatically executing the program')

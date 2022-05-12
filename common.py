@@ -2,7 +2,8 @@ import os
 from abc import ABC, abstractmethod
 from typing import Optional, Any, Callable, Collection, List, Dict
 
-TEMP_DIR = '.tmp'
+HERE = os.path.abspath(os.path.dirname(__file__))
+TEMP_DIR = os.path.join(HERE, '.tmp')
 HOT_SPOT_FILE_PATH = os.path.join(TEMP_DIR, 'hotspots.txt')
 ROOT_NODE_NAME = '#ROOT'
 HOT_SPOT_BLACKLIST = {ROOT_NODE_NAME, '.text'}
@@ -111,6 +112,7 @@ class SampleTreeNode(AbstractTreeNode):
     def __init__(self, trace_entry: str):
         super().__init__()
         self.trace_entry = trace_entry
+        self.sample_count = 0
         self.children_map: Dict[str, 'SampleTreeNode'] = {}
 
     @property
@@ -128,6 +130,7 @@ class SampleTreeNode(AbstractTreeNode):
         return self.trace_entry
 
     def __add_traces(self, traces: List[str], idx: int):
+        self.sample_count += 1
         if idx >= len(traces):
             return
         trace = traces[idx].split('+', 1)[0]

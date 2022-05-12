@@ -28,6 +28,12 @@
   - `-h`：输出帮助信息
   - `-o`：指定 .act 用户动作脚本的输出文件路径
   - `-n`：指定动作的数量
+
+  **用法示例**:
+  
+  ```bash
+  python3 action_gen.py -o my_action.act -n 100
+  ```
   
 - `action_sim.py`：
 
@@ -106,6 +112,13 @@
   - `--start-index`：在为每个 ground truth 存放文件夹编号时的开始下标。默认值：1
   
   在默认参数下，生成的 ground truth 将被存放于 `./output/data1/` ... `./output/data20/` 中
+
+  **用法示例**:
+  
+  ```bash
+  python3 auto_gen.py -n 10
+  python3 auto_gen.py --start-index 20 -an 100 -i myhotspots.txt
+  ```
   
   
 - `common.py`
@@ -133,7 +146,16 @@
   - `-o`：输出的热点函数文件的路径。默认值：hotspots.txt
   - `-r`：当包含此参数时，程序将在控制台输出一些易于阅读的热点函数分析报告
   - `-k`：在使用 pin 采集热点函数时，对函数调用树进行裁切时所使用的参数 k。调用树中子节点数不超过 k 的节点将被裁切掉。默认值：1，意味将会把成链的节点裁掉
+  - `-a`：用户操作脚本的路径。当给定时，将在运行目标程序时执行用户操作脚本模拟用户输入。可选参数
   - `-q`：保持安静，不要在控制台输出信息。虽然这条参数实际上好像并没有什么用，有些地方的输出没能成功隐藏
+
+  **用法示例**:
+  
+  ```bash
+  python3 hotspot_finder.py -c vim
+  python3 hotspot_finder.py -c vim -t pin -k 1 -o my_hotspots.txt -r
+  python3 hotspot_finder.py -c vim -t callgrind -l 200 -a action.act -o my_hotspots.txt
+  ```
   
 - `syscall_tracer.py`
 
@@ -182,6 +204,14 @@
   - `-o`：生成的 ground truth 文件的文件名前缀。默认值：ground_truth
   - `-k`：指定裁剪追踪树时对非次叶节点的参数。默认值：2
   - `--kl`：指定裁剪追踪树时对次叶节点的参数。默认值：4
+  - 
+  **用法示例**:
+  
+  ```bash
+  python3 ground_truth_generator.py -k 2 --kl 4 -o output/my_ground_truth
+  ```
+
+-------
 
 pintool 目录
 
@@ -203,11 +233,11 @@ pintool 目录
 
   采样在系统调用发生时目标程序的调用栈
   
-  用法示例（需编译好 pintool）：
+  **用法示例**（需编译好 pintool）：
   
   ```bash
   cd ./pintool
-  ./pin_root/pin -t obj-intel64/SyscallSampler.so -o my_sampling_result.json -- pwd
+  ./pin_root/pin -t obj-intel64/SyscallSampler.so -o my_sampling_result.json -- ls
   ```
 
   **参数**：
@@ -220,7 +250,7 @@ pintool 目录
 
   基于热点函数列表插桩并运行目标程序
   
-  用法示例（需编译好 pintool）：
+  **用法示例**（需编译好 pintool）：
   
   ```bash
   cd ./pintool
