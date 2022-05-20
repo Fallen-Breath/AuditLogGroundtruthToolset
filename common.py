@@ -1,12 +1,10 @@
 import os
 from abc import ABC, abstractmethod
-from typing import Optional, Any, Callable, Collection, List, Dict
+from typing import Optional, Any, Callable, Collection
 
 HERE = os.path.abspath(os.path.dirname(__file__))
 TEMP_DIR = os.path.join(HERE, '.tmp')
-HOT_SPOT_FILE_PATH = os.path.join(TEMP_DIR, 'hotspots.txt')
 ROOT_NODE_NAME = '#ROOT'
-HOT_SPOT_BLACKLIST = {ROOT_NODE_NAME, '.text'}
 
 
 def touch_dir(dir_path: str):
@@ -106,40 +104,3 @@ class AbstractTreeNode(ABC):
             def writer(s: str, depth: int):
                 print('{}{}'.format(' ' * (depth * 2), s))
         self._dump(writer, 0)
-
-
-class SampleTreeNode(AbstractTreeNode):
-    def __init__(self, trace_entry: str):
-        super().__init__()
-        self.trace_entry = trace_entry
-        self.sample_count = 0
-        self.children_map: Dict[str, 'SampleTreeNode'] = {}
-
-    @property
-    def children(self) -> Collection['SampleTreeNode']:
-        return self.children_map.values()
-
-    def add_child(self, child_node: 'SampleTreeNode'):
-        super().add_child(child_node)
-        self.children_map[child_node.trace_entry] = child_node
-
-    def clean_children(self):
-        self.children_map.clear()
-
-    def to_str(self) -> str:
-        return self.trace_entry
-
-    def __add_traces(self, traces: List[str], idx: int):
-        self.sample_count += 1
-        if idx >= len(traces):
-            return
-        trace = traces[idx].split('+', 1)[0]
-        if trace in self.children_map:
-            node = self.children_map[trace]
-        else:
-            node = SampleTreeNode(trace)
-            self.add_child(node)
-        node.__add_traces(traces, idx + 1)
-
-    def add_traces(self, traces: List[str]):
-        self.__add_traces(traces, 0)
