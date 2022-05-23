@@ -72,7 +72,10 @@ python3 action_gen.py -o my_action.act -n 100
 # startup wait
 sleep 4
 set_key_delay 0.02
-set_key_delay 0 0.04
+set_random_key_delay 0 0.04
+
+# open a file
+input :e myfile.txt[enter]
 
 # insert and input 2 line
 input i
