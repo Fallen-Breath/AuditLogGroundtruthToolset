@@ -191,6 +191,16 @@ def do_trace():
         file.write('Different function amount: {}\n'.format(len(func_name_set)))
         file.write('Different function amount (trimmed): {}\n'.format(len(trimmed_func_name_set)))
 
+        def visitor_leaf_depth(n: TracingTreeNode):
+            if n.is_leaf():
+                nonlocal depth_sum, counter
+                depth_sum += n.depth
+                counter += 1
+        depth_sum = 0
+        counter = 0
+        root.visit_tree(visitor_leaf_depth)
+        file.write('Average leaf depth (trimmed): {}\n'.format(round(depth_sum / counter, 3)))
+
     aggregation_data = aggregate_tree(root)
     with open('{}.aggregation.json'.format(args.output), 'w', encoding='utf8') as file:
         json.dump(aggregation_data, file, ensure_ascii=False, indent=2)
