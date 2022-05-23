@@ -222,7 +222,7 @@ class CallgrindHotspotFinder(HotspotFinder):
             print('Failed to profile with valgrind, exit')
             return False
 
-        rv = self.run_command('callgrind_annotate {} > {}'.format(self.PROFILE_FILEPATH, self.RESULT_FILEPATH))
+        rv = os.system('callgrind_annotate {} > {}'.format(self.PROFILE_FILEPATH, self.RESULT_FILEPATH))
         if rv != 0:
             print('Failed to export callgrind data, exit')
             return False
