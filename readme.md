@@ -157,7 +157,6 @@ python3 auto_gen.py --start-index 20 -an 100 -i myhotspots.txt
 - `-c`：运行目标程序的指令。若未给出此参数，则程序将在控制台中请求用户输入
 - `-o`：输出的热点函数文件的路径。默认值：hotspots.txt
 - `-r`：当包含此参数时，程序将在控制台输出一些易于阅读的热点函数分析报告
-- `-k`：在使用 pin 采集热点函数时，对函数调用树进行裁切时所使用的参数 k。调用树中子节点数不超过 k 的节点将被裁切掉。默认值：1，意味将会把成链的节点裁掉
 - `-a`：用户操作脚本的路径。当给定时，将在运行目标程序时执行用户操作脚本模拟用户输入。可选参数
 - `-q`：保持安静，不要在控制台输出信息。虽然这条参数实际上好像并没有什么用，有些地方的输出没能成功隐藏
 
@@ -165,7 +164,7 @@ python3 auto_gen.py --start-index 20 -an 100 -i myhotspots.txt
 
 ```bash
 python3 hotspot_finder.py -c vim
-python3 hotspot_finder.py -c vim -t pin -k 1 -o my_hotspots.txt -r
+python3 hotspot_finder.py -c vim -t pin -o my_hotspots.txt -r
 python3 hotspot_finder.py -c vim -t callgrind -l 200 -a action.act -o my_hotspots.txt
 ```
 

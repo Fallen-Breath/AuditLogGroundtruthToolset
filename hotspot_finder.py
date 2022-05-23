@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 from typing import Dict, Literal, Optional, IO, Any, List, Collection
 
 from action_sim import ActionSimulator
-from common import TEMP_DIR, touch_dir, HERE, AbstractTreeNode
+from common import TEMP_DIR, touch_dir, HERE, AbstractTreeNode, in_std_lib_paths
 from ground_truth_generator import ROOT_NODE_NAME
 
 args: Any
@@ -259,6 +259,9 @@ class CallgrindHotspotFinder(HotspotFinder):
                     t = info.split(':', 1)[1]
                     if ' ' in t:
                         item.func_name, item.file_path = t.split(' ', 1)
+                        item.file_path = item.file_path[1:-1]
+                        if in_std_lib_paths(item.file_path):
+                            continue
                     else:
                         item.func_name = t
                     self.hot_spot_counter[item.func_name] = item
@@ -298,19 +301,9 @@ class PinHotSpotFinder(HotspotFinder):
             if sample['type'] == 'syscall':
                 traces = []
                 for trace in sample['trace']:
-                    if not trace.split(' at ', 1)[1].startswith('/lib/'):
+                    if not in_std_lib_paths(trace.split(' at ', 1)[1]):
                         traces.append(trace)
                 root.add_traces(traces)
-
-        if args.kfactor > 0:
-            before = root.get_tree_size()
-            root.trim(args.kfactor)
-            after = root.get_tree_size()
-            # print('trimming with k={}, {} -> {} ({:.2f}%)'.format(args.kfactor, before, after, after / before * 100))
-
-        # print('========== Sampling Tree ==========')
-        # root.dump()
-        # print('===================================')
 
         def visitor(node: SampleTreeNode):
             name = node.to_str()
@@ -330,7 +323,6 @@ def main():
     parser.add_argument('--wd', default='.', help='The path of the working directory. Default: current directory')
     parser.add_argument('-o', '--output', default='hotspots.txt', help='The path of the output file. Default: hotspots.txt')
     parser.add_argument('-r', '--report', action='store_true', help='Report a read-able result to console')
-    parser.add_argument('-k', '--kfactor', type=int, default=1, help='The value k used in subtree trimming with tool pin, where nodes with <= k direct children will be trimmed. Default: 1')
     parser.add_argument('-a', '--action', default='', help='The action file for automatically executing the program')
     parser.add_argument('-q', '--quiet', action='store_true', help='Do not print any message unless exception occurs')
 

@@ -4,6 +4,10 @@ from typing import Optional, Any, Callable, Collection
 
 HERE = os.path.abspath(os.path.dirname(__file__))
 TEMP_DIR = os.path.join(HERE, '.tmp')
+STD_LIB_PATHS = [
+    '/lib/',
+    '/usr/lib/',
+]
 ROOT_NODE_NAME = '#ROOT'
 
 
@@ -12,6 +16,10 @@ def touch_dir(dir_path: str):
         dir_path = '.'
     if not os.path.isdir(dir_path):
         os.makedirs(dir_path)
+
+
+def in_std_lib_paths(path: str) -> bool:
+    return any(map(lambda lib_path: path.startswith(lib_path), STD_LIB_PATHS))
 
 
 class AbstractTreeNode(ABC):
