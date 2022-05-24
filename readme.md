@@ -92,7 +92,7 @@ release [ctrl_left]
 # quit
 input [esc]
 sleep 0.3
-input :wq! 1.txt[enter]
+input :wq! newfile.txt[enter]
 ```
 
 #### auto_gen.py
